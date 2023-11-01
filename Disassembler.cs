@@ -1,32 +1,30 @@
-﻿using System.Globalization;
-using System.Collections;
+﻿//using System.Globalization;
+//using System.Collections;
 
 namespace cs8080
 {
     class Disassembler8080
     {
-    		private static int OPbytes(byte opcode)
+    	private static int OPbytes(byte opcode)
     		{
-            switch (opcode)
+            return opcode switch
             {
-                case 0x01 or 0x11 or 0x21 or 0x22 or 0x2a or 0x2e or 0x31 or 0x32 or 0x3a or 0xc2 or 0xc3 or 0xc4 or 0xca or 0xcc or 0xcd or 0xd2 or 0xd4 or 0xda or 0xdc or 0xe2 or 0xe4 or 0xea or 0xec or 0xf2 or 0xf4 or 0xfa or 0xfc:
-                    return 3;
-                case 0x06 or 0x0e or 0x16 or 0x1e or 0x26 or 0x2e or 0x36 or 0x3e or 0xc6 or 0xce or 0xd3 or 0xd6 or 0xdb or 0xde or 0xe6 or 0xee or 0xf6 or 0xfe:
-                    return 2;
-            }
-            return 1;
-    		}
-    		
+                0x01 or 0x11 or 0x21 or 0x22 or 0x2a or 0x2e or 0x31 or 0x32 or 0x3a or 0xc2 or 0xc3 or 0xc4 or 0xca or 0xcc or 0xcd or 0xd2 or 0xd4 or 0xda or 0xdc or 0xe2 or 0xe4 or 0xea or 0xec or 0xf2 or 0xf4 or 0xfa or 0xfc => 3,
+                0x06 or 0x0e or 0x16 or 0x1e or 0x26 or 0x2e or 0x36 or 0x3e or 0xc6 or 0xce or 0xd3 or 0xd6 or 0xdb or 0xde or 0xe6 or 0xee or 0xf6 or 0xfe => 2,
+                _ => 1,
+            };
+        }
+
         private static string OPlookup(byte opcode, byte opcodep1, byte opcodep2)
         {
-            var opcodetable = new Dictionary<int,string>(){
+            var opcodetable = new SortedList<int,string>(){
 				{0x00,"NOP"},
-				{0x01,$"LXI  B, #${opcodep2:X2}{opcodep1:X2}"}, // LXI takes byte 3 and byte 2
+				{0x01,$"LXI  B,#${opcodep2:x2}{opcodep1:x2}"}, // LXI takes byte 3 and byte 2
 				{0x02,"STAX B"},
 				{0x03,"INX  B"},
 				{0x04,"INR  B"},
 				{0x05,"DCR  B"},
-                {0x06,$"MVI  B, #${opcodep1:X2}"}, // MVI takes byte 2 only
+                {0x06,$"MVI  B,#${opcodep1:x2}"}, // MVI takes byte 2 only
                 {0x07,"RLC"},
 				{0x08,"NOP"},
                 {0x09,"DAD  B"},
@@ -34,15 +32,15 @@ namespace cs8080
                 {0x0b,"DCX  B"},
                 {0x0c,"INR  C"},
                 {0x0d,"DCR  C"},
-                {0x0e,$"MVI  C, #${opcodep1:X2}"},
+                {0x0e,$"MVI  C,#${opcodep1:x2}"},
                 {0x0f,"RRC"},
 				{0x10,"NOP"},
-                {0x11,$"LXI  D, #${opcodep2:X2}{opcodep1:X2}"},  // LXI takes byte 3 and byte 2
+                {0x11,$"LXI  D,#${opcodep2:x2}{opcodep1:x2}"},  // LXI takes byte 3 and byte 2
                 {0x12,"STAX D"},
                 {0x13,"INX  D"},
                 {0x14,"INR  D"},
                 {0x15,"DCR  D"},
-                {0x16,$"MVI  D, #${opcodep1:X2}"}, // MVI takes byte 2 only
+                {0x16,$"MVI  D,#${opcodep1:x2}"}, // MVI takes byte 2 only
                 {0x17,"RAL"},
 				{0x18,"NOP"},
                 {0x19,"DAD  D"},
@@ -50,39 +48,39 @@ namespace cs8080
                 {0x1b,"DCX  D"},
                 {0x1c,"INR  E"},
                 {0x1d,"DCR  E"},
-                {0x1e,$"MVI  E, #${opcodep1:X2}"},
+                {0x1e,$"MVI  E,#${opcodep1:x2}"},
                 {0x1f,"RAR"},
 				{0x20,"NOP"},
-                {0x21,$"LXI  H, #${opcodep2:X2}{opcodep1:X2}"}, // LXI takes byte 3 and byte 2
-                {0x22,$"SHLD ${opcodep2:X2}{opcodep1:X2}"}, // SHLD takes byte 3 and 2
+                {0x21,$"LXI  H,#${opcodep2:x2}{opcodep1:x2}"}, // LXI takes byte 3 and byte 2
+                {0x22,$"SHLD ${opcodep2:x2}{opcodep1:x2}"}, // SHLD takes byte 3 and 2
                 {0x23,"INX  H"},
                 {0x24,"INR  H"},
                 {0x25,"DCR  H"},
-                {0x26,$"MVI  H, #${opcodep1:X2}"}, // MVI takes byte 2 only
+                {0x26,$"MVI  H,#${opcodep1:x2}"}, // MVI takes byte 2 only
                 {0x27,"DAA"},
 				{0x28,"NOP"},
                 {0x29,"DAD  H"},
-                {0x2a,$"LHLD ${opcodep2:X2}{opcodep1:X2}"},
+                {0x2a,$"LHLD ${opcodep2:x2}{opcodep1:x2}"},
                 {0x2b,"DCX  H"},
                 {0x2c,"INR  L"},
                 {0x2d,"DCR  L"},
-                {0x2e,$"MVI  L, #${opcodep1:X2}"},
+                {0x2e,$"MVI  L,#${opcodep1:x2}"},
                 {0x2f,"CMA"},
 				{0x30,"NOP"},
-                {0x31,$"LXI  SP, #${opcodep2:X2}{opcodep1:X2}"}, // LXI takes byte 3 and byte 2
-                {0x32,$"STA  ${opcodep2:X2}{opcodep1:X2}"}, // SHLD takes byte 3 and 2
+                {0x31,$"LXI  SP,#${opcodep2:x2}{opcodep1:x2}"}, // LXI takes byte 3 and byte 2
+                {0x32,$"STA  ${opcodep2:x2}{opcodep1:x2}"}, // SHLD takes byte 3 and 2
                 {0x33,"INX  SP"},
                 {0x34,"INR  M"},
                 {0x35,"DCR  M"},
-                {0x36,$"MVI  M, #${opcodep1:X2}"}, // MVI takes byte 2 only
+                {0x36,$"MVI  M,#${opcodep1:x2}"}, // MVI takes byte 2 only
                 {0x37,"STC"},
 				{0x38,"NOP"},
                 {0x39,"DAD  SP"},
-                {0x3a,$"LDA  ${opcodep2:X2}{opcodep1:X2}"},
+                {0x3a,$"LDA  ${opcodep2:x2}{opcodep1:x2}"},
                 {0x3b,"DCX  SP"},
                 {0x3c,"INR  A"},
                 {0x3d,"DCR  A"},
-                {0x3e,$"MVI  A, #{opcodep1:X2}"},
+                {0x3e,$"MVI  A,#${opcodep1:x2}"},
                 {0x3f,"CMC"},
                 {0x40,"MOV  B,B"},
                 {0x41,"MOV  B,C"},
@@ -214,67 +212,67 @@ namespace cs8080
                 {0xbf,"CMP  A"},
                 {0xc0,"RNZ"},
                 {0xc1,"POP  B"},
-                {0xc2,$"JNZ  ${opcodep2:X2}{opcodep1:X2}"},
-                {0xc3,$"JMP  ${opcodep2:X2}{opcodep1:X2}"},
-                {0xc4,$"CNZ  ${opcodep2:X2}{opcodep1:X2}"},
+                {0xc2,$"JNZ  ${opcodep2:x2}{opcodep1:x2}"},
+                {0xc3,$"JMP  ${opcodep2:x2}{opcodep1:x2}"},
+                {0xc4,$"CNZ  ${opcodep2:x2}{opcodep1:x2}"},
                 {0xc5,"PUSH B"},
-                {0xc6,$"ADI  #${opcodep1:X2}"},
+                {0xc6,$"ADI  #${opcodep1:x2}"},
                 {0xc7,"RST  0"},
                 {0xc8,"RZ"},
                 {0xc9,"RET"},
-                {0xca,$"JZ   ${opcodep2:X2}{opcodep1:X2}"},
+                {0xca,$"JZ   ${opcodep2:x2}{opcodep1:x2}"},
 				{0xcb,"NOP"},
-                {0xcc,$"CZ   ${opcodep2:X2}{opcodep1:X2}"},
-                {0xcd,$"CALL ${opcodep2:X2}{opcodep1:X2}"},
-                {0xce,$"ACI  #${opcodep1:X2}"},
+                {0xcc,$"CZ   ${opcodep2:x2}{opcodep1:x2}"},
+                {0xcd,$"CALL ${opcodep2:x2}{opcodep1:x2}"},
+                {0xce,$"ACI  #${opcodep1:x2}"},
                 {0xcf,"RST  1"},
                 {0xd0,"RNC"},
                 {0xd1,"POP  D"},
-                {0xd2,$"JNC  ${opcodep2:X2}{opcodep1:X2}"},
-                {0xd3,$"OUT  #${opcodep1:X2}"},
-                {0xd4,$"CNC  ${opcodep2:X2}{opcodep1:X2}"},
+                {0xd2,$"JNC  ${opcodep2:x2}{opcodep1:x2}"},
+                {0xd3,$"OUT  #${opcodep1:x2}"},
+                {0xd4,$"CNC  ${opcodep2:x2}{opcodep1:x2}"},
                 {0xd5,"PUSH D"},
-                {0xd6,$"SUI  #${opcodep1:X2}"},
+                {0xd6,$"SUI  #${opcodep1:x2}"},
                 {0xd7,"RST  2"},
                 {0xd8,"RC"},
 				{0xd9,"NOP"},
-                {0xda,$"JC   ${opcodep2:X2}{opcodep1:X2}"},
-                {0xdb,$"IN   #${opcodep1:X2}"},
-                {0xdc,$"CC   ${opcodep2:X2}{opcodep1:X2}"},
+                {0xda,$"JC   ${opcodep2:x2}{opcodep1:x2}"},
+                {0xdb,$"IN   #${opcodep1:x2}"},
+                {0xdc,$"CC   ${opcodep2:x2}{opcodep1:x2}"},
 				{0xdd,"NOP"},
-                {0xde,$"SBI  #${opcodep1:X2}"},
+                {0xde,$"SBI  #${opcodep1:x2}"},
                 {0xdf,"RST  3"},
                 {0xe0,"RPO"},
                 {0xe1,"POP  H"},
-                {0xe2,$"JPO  ${opcodep2:X2}{opcodep1:X2}"},
+                {0xe2,$"JPO  ${opcodep2:x2}{opcodep1:x2}"},
                 {0xe3,"XTHL"},
-                {0xe4,$"CPO  ${opcodep2:X2}{opcodep1:X2}"},
+                {0xe4,$"CPO  ${opcodep2:x2}{opcodep1:x2}"},
                 {0xe5,"PUSH H"},
-                {0xe6,$"ANI  #${opcodep1:X2}"},
+                {0xe6,$"ANI  #${opcodep1:x2}"},
                 {0xe7,"RST  4"},
                 {0xe8,"RPE"},
                 {0xe9,"PCHL"},
-                {0xea,$"JPE  ${opcodep2:X2}{opcodep1:X2}"},
+                {0xea,$"JPE  ${opcodep2:x2}{opcodep1:x2}"},
                 {0xeb,"PCHL"},
-                {0xec,$"CPE  ${opcodep2:X2}{opcodep1:X2}"},
+                {0xec,$"CPE  ${opcodep2:x2}{opcodep1:x2}"},
 				{0xed,"NOP"},
-                {0xee,$"XRI  ${opcodep1:X2}"},
+                {0xee,$"XRI  ${opcodep1:x2}"},
                 {0xef,"RST  5"},
                 {0xf0,"RP"},
                 {0xf1,"POP  PSW"},
-                {0xf2,$"JP   ${opcodep2:X2}{opcodep1:X2}"},
+                {0xf2,$"JP   ${opcodep2:x2}{opcodep1:x2}"},
                 {0xf3,"DI"},
-                {0xf4,$"CP   ${opcodep2:X2}{opcodep1:X2}"},
+                {0xf4,$"CP   ${opcodep2:x2}{opcodep1:x2}"},
                 {0xf5,"PUSH PSW"},
-                {0xf6,$"ORI  #${opcodep1:X2}"},
+                {0xf6,$"ORI  #${opcodep1:x2}"},
                 {0xf7,"RST  6"},
                 {0xf8,"RM"},
                 {0xf9,"SPHL"},
-                {0xfa,$"JM   ${opcodep2:X2}{opcodep1:X2}"},
+                {0xfa,$"JM   ${opcodep2:x2}{opcodep1:x2}"},
                 {0xfb,"EI"},
-                {0xfc,$"CM   ${opcodep2:X2}{opcodep1:X2}"},
+                {0xfc,$"CM   ${opcodep2:x2}{opcodep1:x2}"},
 				{0xfd,"NOP"},
-                {0xfe,$"CPI  #${opcodep1:X2}"},
+                {0xfe,$"CPI  #${opcodep1:x2}"},
                 {0xff,"RST  7"}};
             return opcodetable[opcode];
         }
@@ -285,12 +283,12 @@ namespace cs8080
             int balen = opcodes.Length-2;
             for (int i = 0; i < balen; i++)
             {
-                Console.WriteLine($"{i:X4}  {OPlookup(opcodes[i], opcodes[i+1], opcodes[i+2])}");
+                Console.WriteLine($"{i:x4}  {OPlookup(opcodes[i], opcodes[i+1], opcodes[i+2])}");
                 i+=OPbytes(opcodes[i])-1;
             }
-            Console.WriteLine($"{balen:X4}  {OPlookup(opcodes[balen], opcodes[balen+1], opcodes[balen+1])}");
+            Console.WriteLine($"{balen:x4}  {OPlookup(opcodes[balen], opcodes[balen+1], 0)}");
             balen++;
-            Console.WriteLine($"{balen:X4}  {OPlookup(opcodes[balen], opcodes[balen], opcodes[balen])}");
+            Console.WriteLine($"{balen:x4}  {OPlookup(opcodes[balen], 0, 0)}");
         }
     }
 }
