@@ -11,7 +11,7 @@ namespace cs8080
 	class State : ConditionCodes
 	{
 		private const ushort MaxMem = 65535; // 64k of ram
-		public byte B = 0x0, C = 0x0, D = 0, E = 0, H = 0xae, L = 0x29, M = 0, A = 0x0; // 7 8-bit general purpose registers (can be used as 16 bit in pairs of 2) and a special accumulator register
+		public byte B = 0x0, C = 0x0, D = 0, E = 0, H = 0x0, L = 0x0, M = 0, A = 0x0; // 7 8-bit general purpose registers (can be used as 16 bit in pairs of 2) and a special accumulator register
 		public ushort SP = 0, PC = 0; // stack pointer that keeps return address, program counter that loads the next instruction to execute
 		public byte[] mem8080 = new byte[MaxMem]; // 64k of ram as a byte array
 	}
@@ -281,13 +281,15 @@ namespace cs8080
 			ArithFlags.ZeroF = true;
 			ArithFlags.SignF = true;
 			ArithFlags.ParityF = true;
-			if ((i8080.A << 4)>> 4 > 9 || i8080.AC)
+			byte lowacc = (byte)(i8080.A & 0x0f);
+			if ((byte)(i8080.A & 0x0f) > 0x09 || i8080.AC)
 			{
-				i8080.A += 6;
+				i8080.A += 0x06;
+				i8080.AC = lowacc + 0x06 > 0x10;
 			}
-			if (i8080.A >> 4 > 9 || i8080.CY)
+			if ((byte)(i8080.A & 0xf0) > 0x90 || i8080.CY)
 			{
-				i8080.A += 6;
+				i8080.A = (byte)(i8080.A + 0x60 & 0xff);
 			}
 			return i8080;
 		}
