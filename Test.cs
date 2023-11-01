@@ -28,7 +28,7 @@
 				i8080.mem8080[0x59d] = 0xc2;
 				i8080.mem8080[0x59e] = 0x05;
 
-				Console.WriteLine("Done, running...");
+				Console.WriteLine($"Done loading {FM.ROMl} bytes, running...");
 				Emulate.Executor(i8080, (ushort)(rom.Length+i8080.PC));
 			}
 			catch (Exception E)

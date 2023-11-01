@@ -1,6 +1,4 @@
-﻿using System.Globalization;
-
-namespace cs8080
+﻿namespace cs8080
 {
 	class ArithFlags
 	{
@@ -82,9 +80,27 @@ namespace cs8080
 	{
 		private const ushort MaxMem = 65535; // 64k of ram
 		public byte B = 0x0, C = 0x0, D = 0, E = 0, H = 0x0, L = 0x0, A = 0x0; // 7 8-bit general purpose registers (can be used as 16 bit in pairs of 2) and a special accumulator register
-		public ushort SP = 0, PC = 0x0; // stack pointer that keeps return address, program counter that loads the next instruction to execute
-		public bool interrupt=true;
+		public ushort SP = 0, PC = 0x0; // stack pointer that keeps return address, program counter that points to the next instruction to execute
+		public bool interrupt=true; // interrupts (no clue what the default should be)
 		public byte[] mem8080 = new byte[MaxMem]; // 64k of ram as a byte array
+		public void MemWrite(ushort adr, byte val)
+		{
+			if (adr < FM.ROMl) // program crashes if it tries to write to somewhere that doesn't exist anyway
+			{
+				Console.WriteLine($"Warning: Tried to write to {adr:x4}, which is in ROM");
+			}
+			mem8080[adr] = val;
+		}
+		public void MemWrite(ushort adr, byte valhi, byte vallo)
+		{
+			MemWrite(adr, valhi);
+			MemWrite((ushort)(adr + 1), vallo);
+		}
+		public void MemWrite(ushort adr, ushort val)
+		{
+			MemWrite((ushort)(adr + 1), (byte)(val >> 8));
+			MemWrite(adr, (byte)val);
+		}
 	}
 
 	class Ops
@@ -134,22 +150,6 @@ namespace cs8080
 
 	class Instructions : Ops
 	{
-		protected static State INR(State i8080, byte reg)
-		{
-			ArithFlags flags = new();
-			flags.SetAllNC();
-			i8080.Write(i8080, flags, (ushort)(reg + 1));
-			return i8080;
-		}
-
-		protected static State DCR(State i8080, byte reg)
-		{
-			ArithFlags flags = new();
-			flags.SetAllNC();
-			i8080.Write(i8080, flags, (ushort)(reg - 1));
-			return i8080;
-		}
-
 		protected static State DAD(State i8080, int addpair) // 32 bit int because we need 1 overflow bit for carry
 		{
 			int resultpair = addpair + toWord(i8080.H, i8080.L);
@@ -176,8 +176,7 @@ namespace cs8080
 		protected static State CALL(State i8080, ushort adr)
 		{
 			i8080.SP -= 2; // if stack pointer is at 0 it wont work
-			i8080.mem8080[i8080.SP + 1] = splitWordhi(i8080.PC);
-			i8080.mem8080[i8080.SP] = splitWordlo(i8080.PC);
+			i8080.MemWrite(i8080.SP, i8080.PC);
 			if (i8080.C == 9)
 			{
 				ushort addr = (ushort)((i8080.D << 8) | i8080.E);
@@ -200,8 +199,8 @@ namespace cs8080
 	{
 		private static State OpcodeHandler(State i8080)
 		{
-			byte nbyte = nextByte(i8080.mem8080, i8080.PC), nbyte2 = next2Byte(i8080.mem8080, i8080.PC), leftbit, rightbit, ahl = i8080.mem8080[toWord(i8080.H, i8080.L)];
-			ushort nword = nextWord(i8080.mem8080, i8080.PC), regpair; // we use regpair because it made sense for a few things, and we can reuse this for other ushort var requirements
+			byte nbyte = nextByte(i8080.mem8080, i8080.PC), nbyte2 = next2Byte(i8080.mem8080, i8080.PC), leftbit, rightbit, ahl = i8080.mem8080[toWord(i8080.H, i8080.L)]; // leftbit rightbit are just variables that are used to hold values for a complex instruction
+			ushort nword = nextWord(i8080.mem8080, i8080.PC), regpair; // use regpair because it made sense for a few things, and we can reuse this for other ushort var requirements
 			ArithFlags flags = new();
 			switch (i8080.mem8080[i8080.PC])
 			{
@@ -213,39 +212,39 @@ namespace cs8080
 				case 0x21: i8080.H = nbyte2; i8080.L = nbyte; i8080.PC += 2; break;
 				case 0x31: i8080.SP = nword; i8080.PC += 2; break;
 				// STAX instruction, store accumulator into mem, address indicated by register pair
-				case 0x02: i8080.mem8080[toWord(i8080.B, i8080.C)] = i8080.A; break;
-				case 0x12: i8080.mem8080[toWord(i8080.D, i8080.E)] = i8080.A; break;
+				case 0x02: i8080.MemWrite(toWord(i8080.B, i8080.C), i8080.A); break;
+				case 0x12: i8080.MemWrite(toWord(i8080.D, i8080.E), i8080.A); break;
 				// INX instruction, join registers to word, then increment, then split word
 				case 0x03: regpair = (ushort)(toWord(i8080.B, i8080.C) + 1); i8080.B = splitWordhi(regpair); i8080.C = splitWordlo(regpair); break;
 				case 0x13: regpair = (ushort)(toWord(i8080.D, i8080.E) + 1); i8080.D = splitWordhi(regpair); i8080.E = splitWordlo(regpair); break;
 				case 0x23: regpair = (ushort)(toWord(i8080.H, i8080.L) + 1); i8080.H = splitWordhi(regpair); i8080.L = splitWordlo(regpair); break;
 				case 0x33: i8080.SP++; break;
-				// INR instruction, increment a register
-				case 0x04: INR(i8080, i8080.B); i8080.B++; break;
-				case 0x0c: INR(i8080, i8080.C); i8080.C++; break;
-				case 0x14: INR(i8080, i8080.D); i8080.D++; break;
-				case 0x1c: INR(i8080, i8080.E); i8080.E++; break;
-				case 0x24: INR(i8080, i8080.H); i8080.H++; break;
-				case 0x2c: INR(i8080, i8080.L); i8080.L++; break;
-				case 0x34: INR(i8080, ahl); i8080.mem8080[toWord(i8080.H, i8080.L)] = (byte)(ahl + 1); break;
-				case 0x3c: INR(i8080, i8080.A); i8080.A++; break;
-				// DCR instruction, decrement a register
-				case 0x05: DCR(i8080, i8080.B); i8080.B--; break;
-				case 0x0d: DCR(i8080, i8080.C); i8080.C--; break;
-				case 0x15: DCR(i8080, i8080.D); i8080.D--; break;
-				case 0x1d: DCR(i8080, i8080.E); i8080.E--; break;
-				case 0x25: DCR(i8080, i8080.H); i8080.H--; break;
-				case 0x2d: DCR(i8080, i8080.L); i8080.L--; break;
-				case 0x35: DCR(i8080, ahl); i8080.mem8080[toWord(i8080.H, i8080.L)] = (byte)(ahl - 1); break;
-				case 0x3d: DCR(i8080, i8080.A); i8080.A--; break;
-				// MVI instruction, loads register with next byte of the ROM
-				case 0x06: i8080.B = nbyte; i8080.PC++; break;
+					 // INR instruction, increment a register
+					 case 0x04: flags.SetAllNC(); i8080.Write(i8080, flags, (ushort)(i8080.B + 1)); i8080.B++; i8080.AC = (i8080.B & 0xf) == 0; break;
+					 case 0x0c: flags.SetAllNC(); i8080.Write(i8080, flags, (ushort)(i8080.C + 1)); i8080.C++; i8080.AC = (i8080.C & 0xf) == 0; break;
+					 case 0x14: flags.SetAllNC(); i8080.Write(i8080, flags, (ushort)(i8080.D + 1)); i8080.D++; i8080.AC = (i8080.D & 0xf) == 0; break;
+					 case 0x1c: flags.SetAllNC(); i8080.Write(i8080, flags, (ushort)(i8080.E + 1)); i8080.E++; i8080.AC = (i8080.E & 0xf) == 0; break;
+					 case 0x24: flags.SetAllNC(); i8080.Write(i8080, flags, (ushort)(i8080.H + 1)); i8080.H++; i8080.AC = (i8080.H & 0xf) == 0; break;
+					 case 0x2c: flags.SetAllNC(); i8080.Write(i8080, flags, (ushort)(i8080.L + 1)); i8080.L++; i8080.AC = (i8080.L & 0xf) == 0; break;
+					 case 0x34: flags.SetAllNC(); i8080.Write(i8080, flags, (ushort)(ahl + 1)); i8080.MemWrite(toWord(i8080.H, i8080.L), (byte)(ahl + 1)); i8080.AC = ((ahl+1) & 0xf) == 0; break;
+					 case 0x3c: flags.SetAllNC(); i8080.Write(i8080, flags, (ushort)(i8080.A + 1)); i8080.A++; i8080.AC = (i8080.A & 0xf) == 0; break;
+					 // DCR instruction, decrement a register
+					 case 0x05: flags.SetAllNC(); i8080.Write(i8080, flags, (ushort)(i8080.B - 1)); i8080.B--; i8080.AC = !((i8080.B & 0xf) == 0xf); break;
+					 case 0x0d: flags.SetAllNC(); i8080.Write(i8080, flags, (ushort)(i8080.C - 1)); i8080.C--; i8080.AC = !((i8080.C & 0xf) == 0xf); break;
+					 case 0x15: flags.SetAllNC(); i8080.Write(i8080, flags, (ushort)(i8080.D - 1)); i8080.D--; i8080.AC = !((i8080.D & 0xf) == 0xf); break;
+					 case 0x1d: flags.SetAllNC(); i8080.Write(i8080, flags, (ushort)(i8080.E - 1)); i8080.E--; i8080.AC = !((i8080.E & 0xf) == 0xf); break;
+					 case 0x25: flags.SetAllNC(); i8080.Write(i8080, flags, (ushort)(i8080.H - 1)); i8080.H--; i8080.AC = !((i8080.H & 0xf) == 0xf); break;
+					 case 0x2d: flags.SetAllNC(); i8080.Write(i8080, flags, (ushort)(i8080.L - 1)); i8080.L--; i8080.AC = !((i8080.L & 0xf) == 0xf); break;
+					 case 0x35: flags.SetAllNC(); i8080.Write(i8080, flags, (ushort)(ahl - 1)); i8080.MemWrite(toWord(i8080.H, i8080.L), (byte)(ahl - 1)); i8080.AC = !(((ahl - 1) & 0xf) == 0xf); break;
+					 case 0x3d: flags.SetAllNC(); i8080.Write(i8080, flags, (ushort)(i8080.A - 1)); i8080.A--; i8080.AC = !((i8080.A & 0xf) == 0xf); break;
+					 // MVI instruction, loads register with next byte of the ROM
+					 case 0x06: i8080.B = nbyte; i8080.PC++; break;
 				case 0x0e: i8080.C = nbyte; i8080.PC++; break;
 				case 0x16: i8080.D = nbyte; i8080.PC++; break;
 				case 0x1e: i8080.E = nbyte; i8080.PC++; break;
 				case 0x26: i8080.H = nbyte; i8080.PC++; break;
 				case 0x2e: i8080.L = nbyte; i8080.PC++; break;
-				case 0x36: i8080.mem8080[toWord(i8080.H, i8080.L)] = nbyte; i8080.PC++; break;
+				case 0x36: i8080.MemWrite(toWord(i8080.H, i8080.L), nbyte); i8080.PC++; break;
 				case 0x3e: i8080.A = nbyte; i8080.PC++; break;
 				// RLC, rotates the accumulator left bitwise, carry is set to high order bit of A
 				case 0x07:
@@ -261,7 +260,7 @@ namespace cs8080
 				// LDAX, set accumulator to mem address of register pair BC or DE
 				case 0x0a: i8080.A = i8080.mem8080[toWord(i8080.B, i8080.C)]; break;
 				case 0x1a: i8080.A = i8080.mem8080[toWord(i8080.D, i8080.E)]; break;
-				// DCX instruction
+				// DCX, decrement a register pair
 				case 0x0b: regpair = toWord(i8080.B, i8080.C); regpair--; i8080.B = splitWordhi(regpair); i8080.C = splitWordlo(regpair); break;
 				case 0x1b: regpair = toWord(i8080.D, i8080.E); regpair--; i8080.D = splitWordhi(regpair); i8080.E = splitWordlo(regpair); break;
 				case 0x2b: regpair = toWord(i8080.H, i8080.L); regpair--; i8080.H = splitWordhi(regpair); i8080.L = splitWordlo(regpair); break;
@@ -278,7 +277,7 @@ namespace cs8080
 					i8080.A = (byte)((byte)(i8080.A << 1) | Convert.ToByte(i8080.CY));
 					i8080.CY = Convert.ToBoolean(leftbit);
 					break;
-				// RAR, if RRC & RAL had a child
+				// RAR, RAL the other way
 				case 0x1f:
 					rightbit = (byte)(i8080.A << 7);
 					i8080.A = (byte)((byte)(i8080.A >> 1) | Convert.ToByte(i8080.CY));
@@ -286,11 +285,10 @@ namespace cs8080
 					break;
 				// SHLD, L and H register stored at adr operand and adr operand + 1
 				case 0x22:
-					i8080.mem8080[nword] = i8080.L;
-					i8080.mem8080[nword + 1] = i8080.H;
+					i8080.MemWrite(nword, toWord(i8080.H, i8080.L));
 					i8080.PC += 2;
 					break;
-				// DAA, accumulator's 8 bit number is turned into 2 4-bit binary-coded-decimal digits (w h a t) (SetAllNC)
+				// DAA, accumulator's 8 bit number is turned into 2 4-bit binary-coded-decimal digits (w h a t)
 				case 0x27:
 					if ((byte)(i8080.A & 0x0f) > 0x09 || i8080.AC)
 					{
@@ -314,7 +312,7 @@ namespace cs8080
 				// CMA, bitflip accumulator
 				case 0x2f: i8080.A = (byte)~i8080.A; break;
 				// STA, store accumulator at the adr operand
-				case 0x32: i8080.mem8080[nword] = i8080.A; i8080.PC += 2; break;
+				case 0x32: i8080.MemWrite(nword, i8080.A); i8080.PC += 2; break;
 				// STC, set carry flag
 				case 0x37: i8080.CY = true; break;
 				// LDA, STA but adr operand's byte is written to the accumulator
@@ -370,14 +368,14 @@ namespace cs8080
 				case 0x6d: break; // L -> L
 				case 0x6e: i8080.L = ahl; break;
 				case 0x6f: i8080.L = i8080.A; break;
-				case 0x70: i8080.mem8080[toWord(i8080.H, i8080.L)] = i8080.B; break;
-				case 0x71: i8080.mem8080[toWord(i8080.H, i8080.L)] = i8080.C; break;
-				case 0x72: i8080.mem8080[toWord(i8080.H, i8080.L)] = i8080.D; break;
-				case 0x73: i8080.mem8080[toWord(i8080.H, i8080.L)] = i8080.E; break;
-				case 0x74: i8080.mem8080[toWord(i8080.H, i8080.L)] = i8080.H; break;
-				case 0x75: i8080.mem8080[toWord(i8080.H, i8080.L)] = i8080.L; break;
+				case 0x70: i8080.MemWrite(toWord(i8080.H, i8080.L), i8080.B); break;
+				case 0x71: i8080.MemWrite(toWord(i8080.H, i8080.L), i8080.C); break;
+				case 0x72: i8080.MemWrite(toWord(i8080.H, i8080.L), i8080.D); break;
+				case 0x73: i8080.MemWrite(toWord(i8080.H, i8080.L), i8080.E); break;
+				case 0x74: i8080.MemWrite(toWord(i8080.H, i8080.L), i8080.H); break;
+				case 0x75: i8080.MemWrite(toWord(i8080.H, i8080.L), i8080.L); break;
 				case 0x76: Console.WriteLine("Halt requested, terminating execution..."); Environment.Exit(0); break; // HLT
-				case 0x77: i8080.mem8080[toWord(i8080.H, i8080.L)] = i8080.A; break;
+				case 0x77: i8080.MemWrite(toWord(i8080.H, i8080.L), i8080.A); break;
 				case 0x78: i8080.A = i8080.B; break;
 				case 0x79: i8080.A = i8080.C; break;
 				case 0x7a: i8080.A = i8080.D; break;
@@ -386,7 +384,7 @@ namespace cs8080
 				case 0x7d: i8080.A = i8080.L; break;
 				case 0x7e: i8080.A = ahl; break;
 				case 0x7f: break; // A -> A
-										// ADD, add a register to the accumulator
+				// ADD, add a register to the accumulator
 				case 0x80: flags.SetAll(); regpair = (ushort)(i8080.A + i8080.B); i8080.Write(i8080, flags, regpair); i8080.A = (byte)regpair; break;
 				case 0x81: flags.SetAll(); regpair = (ushort)(i8080.A + i8080.C); i8080.Write(i8080, flags, regpair); i8080.A = (byte)regpair; break;
 				case 0x82: flags.SetAll(); regpair = (ushort)(i8080.A + i8080.D); i8080.Write(i8080, flags, regpair); i8080.A = (byte)regpair; break;
@@ -413,7 +411,7 @@ namespace cs8080
 				case 0x95: flags.SetAllNC(); regpair = (ushort)(i8080.A + (~i8080.L & 0xff) + 1); i8080.Write(i8080, flags, regpair); i8080.A = (byte)regpair; break;
 				case 0x96: flags.SetAllNC(); regpair = (ushort)(i8080.A + (~ahl & 0xff) + 1); i8080.Write(i8080, flags, regpair); i8080.A = (byte)regpair; break;
 				case 0x97: flags.SetAllNC(); i8080.A = 0x0; i8080.Write(i8080, flags, i8080.A); break; // subbing A is very simple
-																																	// SBB, SUB but with a carry added to the register
+				// SBB, SUB but with a carry added to the register
 				case 0x98: flags.SetAll(); regpair = (ushort)(i8080.A + (~(i8080.B + Convert.ToByte(i8080.CY)) & 0xff) + 1); i8080.Write(i8080, flags, regpair); i8080.A = (byte)regpair; break;
 				case 0x99: flags.SetAll(); regpair = (ushort)(i8080.A + (~(i8080.C + Convert.ToByte(i8080.CY)) & 0xff) + 1); i8080.Write(i8080, flags, regpair); i8080.A = (byte)regpair; break;
 				case 0x9a: flags.SetAll(); regpair = (ushort)(i8080.A + (~(i8080.D + Convert.ToByte(i8080.CY)) & 0xff) + 1); i8080.Write(i8080, flags, regpair); i8080.A = (byte)regpair; break;
@@ -460,7 +458,7 @@ namespace cs8080
 				case 0xbf: flags.SetAllNC(); i8080.Write(i8080, flags, (ushort)(i8080.A + (~i8080.A ) + 1)); break;
 				// RNZ, return if not zero
 				case 0xc0: if (!i8080.Z) { RET(i8080); } break;
-				// POP
+				// POP, pops the stack to a register pair
 				case 0xc1: i8080.C = i8080.mem8080[i8080.SP]; i8080.B = i8080.mem8080[i8080.SP + 1]; i8080.SP += 2; break;
 				case 0xd1: i8080.E = i8080.mem8080[i8080.SP]; i8080.D = i8080.mem8080[i8080.SP + 1]; i8080.SP += 2; break;
 				case 0xe1: i8080.L = i8080.mem8080[i8080.SP]; i8080.H = i8080.mem8080[i8080.SP + 1]; i8080.SP += 2; break;
@@ -474,20 +472,20 @@ namespace cs8080
 					i8080.A = (byte)(i8080.mem8080[i8080.SP + 1] -2);
 					i8080.SP += 2;
 					break;
-				// JNZ
+				// JNZ, jump if zero flag isnt set
 				case 0xc2: if (!i8080.Z) { JMP(i8080, nword); } else { i8080.PC += 2; } break;
 				// JMP, jump to address
 				case 0xc3: JMP(i8080, nword); break; // i don't think we need to increment PC by 2 since PC gets set to something else anyway
-				// CNZ
+				// CNZ, call if zero flag isnt set
 				case 0xc4: if (!i8080.Z) { CALL(i8080, nword); } else { i8080.PC += 2; } break;
-				// PUSH
-				case 0xc5: i8080.mem8080[i8080.SP - 2] = i8080.C; i8080.mem8080[i8080.SP - 1] = i8080.B; i8080.SP -= 2; break;
-				case 0xd5: i8080.mem8080[i8080.SP - 2] = i8080.E; i8080.mem8080[i8080.SP - 1] = i8080.D; i8080.SP -= 2; break;
-				case 0xe5: i8080.mem8080[i8080.SP - 2] = i8080.L; i8080.mem8080[i8080.SP - 1] = i8080.H; i8080.SP -= 2; break;
-				case 0xf5: i8080.mem8080[i8080.SP - 2] = B2F(i8080); i8080.SP -= 2; break;
-				// ADI
+				// PUSH, regpair pushed onto stack
+				case 0xc5: i8080.SP -= 2; i8080.MemWrite(i8080.SP, i8080.C, i8080.B); break;
+				case 0xd5: i8080.SP -= 2; i8080.MemWrite(i8080.SP, i8080.E, i8080.D); break;
+				case 0xe5: i8080.SP -= 2; i8080.MemWrite(i8080.SP, i8080.L, i8080.H); break;
+				case 0xf5: i8080.SP -= 2; i8080.MemWrite(i8080.SP, B2F(i8080)); break;
+				// ADI, accumulator add next byte
 				case 0xc6: flags.SetAll(); regpair = (ushort)(i8080.A + nbyte); i8080.Write(i8080, flags,regpair); i8080.A = (byte)(i8080.A + nbyte); i8080.PC++; break;
-				// RST 0, 1, 2, 3, 4, 5, 6, 7
+				// RST 0, 1, 2, 3, 4, 5, 6, 7 which returns to these set address
 				case 0xc7: CALL(i8080, 0x00); break;
 				case 0xcf: CALL(i8080, 0x08); break;
 				case 0xd7: CALL(i8080, 0x10); break;
@@ -496,79 +494,84 @@ namespace cs8080
 				case 0xef: CALL(i8080, 0x28); break;
 				case 0xf7: CALL(i8080, 0x30); break;
 				case 0xff: CALL(i8080, 0x38); break;
-				// RZ
+				// RZ, return if zero flag is set
 				case 0xc8: if (i8080.Z) { RET(i8080); } break;
 				// RET, return op
 				case 0xc9: RET(i8080); break;
-				// JZ
-				case 0xca: if (i8080.Z) { JMP(i8080, nword); } else { i8080.PC += 2; } break;
-				// CZ
+				// JZ, jump to addres if zero is set
+				case 0xca: if (i8080.Z) { JMP(i8080, nword); } else { i8080.PC += 2; } break; // these else statements make it so the data bytes are skipped
+				// CZ, same as above but for call
 				case 0xcc: if (i8080.Z) { CALL(i8080, nword); } else { i8080.PC += 2; } break;
-				// CALL
+				// CALL, call a function
 				case 0xcd: CALL(i8080, nword); break;
-				// ACI
+				// ACI, ADI but with carry flag
 				case 0xce: flags.SetAll(); regpair = (ushort)(i8080.A + (byte)(nbyte + Convert.ToByte(i8080.CY))); i8080.Write(i8080, flags, regpair); i8080.A = (byte)regpair; i8080.PC++; break;
-				// RNC
+				// RNC, return if carry isn't set
 				case 0xd0: if (!i8080.CY) { RET(i8080); } break;
-				// JNC
+				// JNC, jump if carry isn't set
 				case 0xd2: if (!i8080.CY) { i8080.PC = (ushort)(nword - 1); } else { i8080.PC += 2; } break;
-				// OUT
+				// OUT, instruction to access output devices
 				case 0xd3: Console.WriteLine("I/O not implemented."); break;
-				// CNC
+				// CNC, call if carry isn't set
 				case 0xd4: if (!i8080.CY) { CALL(i8080, nword); } else { i8080.PC += 2; } break;
-				// SUI
+				// SUI, sub next byte from accumulator
 				case 0xd6: flags.SetAll(); regpair = (ushort)(i8080.A - nbyte); i8080.Write(i8080, flags, regpair); i8080.A = (byte)regpair; i8080.PC++; break;
-				// RC
+				// RC, return if carry is set
 				case 0xd8: if (i8080.CY) { RET(i8080); } break;
-				// JC
+				// JC, jump if carry is set
 				case 0xda: if (i8080.CY) { i8080.PC = (ushort)(nword - 1); } else { i8080.PC += 2; } break;
-				// IN
+				// IN, accesses input devices
 				case 0xdb: Console.WriteLine("I/O not implemented."); break;
-				// CC
+				// CC, call if carry is set
 				case 0xdc: if (i8080.CY) { CALL(i8080, nword); } else { i8080.PC += 2; } break;
-				// SBI
+				// SBI, sui but with a carry
 				case 0xde: flags.SetAll(); i8080.Write(i8080, flags, (ushort)(i8080.A - (byte)(nbyte + Convert.ToByte(i8080.CY)))); i8080.A -= (byte)(nbyte + Convert.ToByte(i8080.CY)); i8080.PC++; break;
-				// RPO
+				// RPO, return if parity is odd
 				case 0xe0: if (!i8080.P) { RET(i8080); } break;
-				// JPO
+				// JPO, jump if parity is odd
 				case 0xe2: if (!i8080.P) { i8080.PC = (ushort)(nword - 1); } else { i8080.PC += 2; } break;
-				// XTHL
-				case 0xe3: (i8080.L, i8080.mem8080[i8080.SP]) = (i8080.mem8080[i8080.SP], i8080.L); (i8080.H, i8080.mem8080[i8080.SP+1]) = (i8080.mem8080[i8080.SP+1], i8080.H); break;
-				// CPO
+				// XTHL, swap HL with SP
+				case 0xe3:
+					leftbit = i8080.L; rightbit = i8080.H;
+					i8080.L = i8080.mem8080[i8080.SP];
+					i8080.H = i8080.mem8080[i8080.SP + 1];
+					i8080.MemWrite(i8080.SP, leftbit, rightbit); // sets SP places to HL
+					break;
+				// CPO, call if parity is odd
 				case 0xe4: if (!i8080.P) { CALL(i8080, nword); } else { i8080.PC += 2; } break;
-				// ANI
+				// ANI, logical AND with accumulator and next byte
 				case 0xe6: flags.SetAll(); regpair = (ushort)(i8080.A & nbyte); i8080.Write(i8080, flags, regpair); i8080.A = (byte)regpair; i8080.PC++; break;
-				// RPE
+				// RPE, return if parity is even
 				case 0xe8: if (i8080.P) { RET(i8080); } break;
-				// PCHL
-				case 0xe9: i8080.PC = (ushort)(toWord(i8080.H, i8080.L) -1); break;
-				// JPE
+				// PCHL, set PC to HL
+				case 0xe9: i8080.PC = (ushort)(toWord(i8080.H, i8080.L) -1); break; // remember that PC increments always so undo
+				// JPE, jump if parity is even
 				case 0xea: if (i8080.P) { i8080.PC = (ushort)(nword - 1); } else { i8080.PC += 2; } break;
-				// XCHG
+				// XCHG, swap DE and HL
 				case 0xeb: (i8080.H, i8080.D) = (i8080.D, i8080.H); (i8080.L, i8080.E) = (i8080.E, i8080.L); break;
-				// CPE
+				// CPE, call if parity is even
 				case 0xec: if (i8080.P) { CALL(i8080, nword); } else { i8080.PC += 2; } break;
-				// XRI
+				// XRI, logical XOR with next byte and accumulator
 				case 0xee: flags.SetAll(); regpair = (ushort)(i8080.A ^ nbyte); i8080.Write(i8080, flags, regpair); i8080.A = (byte)regpair; i8080.PC++; break;
-				// RP
+				// RP, return if sign isn't set
 				case 0xf0: if (!i8080.S) { RET(i8080); } break;
-				// JP
+				// JP, jump if sign isn't set
 				case 0xf2: if (!i8080.S) { JMP(i8080, nword); } else { i8080.PC += 2; } break;
 				// DI, disable interrupts
 				case 0xf3: i8080.interrupt = false; break;
-				// CP
+				// CP, call if sign isn't set
 				case 0xf4: if (!i8080.S) { CALL(i8080, nword); } else { i8080.PC += 2; } break;
-				// ORI
+				// ORI, logical OR with accumulator and next byte
 				case 0xf6: flags.SetAll(); regpair = (ushort)(i8080.A | nbyte); i8080.Write(i8080, flags, regpair); i8080.A = (byte)regpair; i8080.PC++; break;
-				// RM
+				// RM, return if sign set
 				case 0xf8: if (i8080.S) { RET(i8080); } break;
-				// SPHL
+				// SPHL, set stack pointer to HL 
 				case 0xf9: i8080.SP = toWord(i8080.H, i8080.L); break;
-				// JM
+				// JM, jump to addr if sign is set
 				case 0xfa: if (i8080.S) { JMP(i8080, nword); } else { i8080.PC += 2; } break;
 				// EI, opposite of DI
 				case 0xfb: i8080.interrupt = true; break;
-				// CM
+				// CM, call if sign is set
 				case 0xfc: if (i8080.S) { CALL(i8080, nword); } else { i8080.PC += 2; } break;
 				// CPI, SUI but only change flags
 				case 0xfe: flags.SetAll(); i8080.Write(i8080, flags, (ushort)(i8080.A - nbyte)); i8080.PC++; break;
@@ -585,10 +588,13 @@ namespace cs8080
 		{
 			while (i8080.PC < romlength)
 			{
-				//Console.WriteLine($"PC: {i8080.PC:X4}, AF: {i8080.A:X2}{Ops.B2F(i8080):X2}, BC: {i8080.B:X2}{i8080.C:X2}, DE: {i8080.D:X2}{i8080.E:X2}, HL: {i8080.H:X2}{i8080.L:X2}, SP: {i8080.SP:X4} - {Disassembler.OPlookup(i8080.mem8080[i8080.PC], i8080.mem8080[i8080.PC + 1], i8080.mem8080[i8080.PC + 2])}");
+				#if DEBUG
+					Console.WriteLine($"PC: {i8080.PC:X4}, AF: {i8080.A:X2}{Ops.B2F(i8080):X2}, BC: {i8080.B:X2}{i8080.C:X2}, DE: {i8080.D:X2}{i8080.E:X2}, HL: {i8080.H:X2}{i8080.L:X2}, SP: {i8080.SP:X4} - {Disassembler.OPlookup(i8080.mem8080[i8080.PC], i8080.mem8080[i8080.PC + 1], i8080.mem8080[i8080.PC + 2])}");
+					FM.DumpAll(i8080, "dump");				
+				#endif
 				OpcodeHandler(i8080);
 				i8080.PC++;
-				//Thread.Sleep(100);
+				//Thread.Sleep(50);
 			}
 			return i8080;
 		}

@@ -1,14 +1,20 @@
 ﻿using System.Globalization;
-using System.Runtime.CompilerServices;
 using System.Text;
 
 namespace cs8080
 {
 	class FM
 	{
+		public static ushort ROMl=0;
+
 		public static byte[] LoadROM(byte[] rom, byte[] mem, int offset)
 		{
-			for (int i = offset; i < rom.Length+offset; i++)
+			for (int i = rom.Length-1; rom[i] == 0x00; i--)
+			{
+				ROMl++;
+			}
+			ROMl = (ushort)(rom.Length+offset-ROMl);
+			for (int i = offset; i < ROMl; i++)
 			{
 				mem[i] = rom[i-offset];
 			}

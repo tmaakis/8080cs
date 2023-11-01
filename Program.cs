@@ -19,11 +19,11 @@
 					}
 					else
 					{
-						byte[] rom = File.ReadAllBytes(args[0]);
 						Console.WriteLine("Loading ROM...");
-						i8080.mem8080 = FM.LoadROM(rom, i8080.mem8080, 0x0);
-						Console.WriteLine("Done, running...");
-						Emulate.Executor(i8080, (ushort)(rom.Length + i8080.PC));
+						i8080.mem8080 = FM.LoadROM(File.ReadAllBytes(args[0]), i8080.mem8080, 0x0);
+						Console.WriteLine($"Done loading {FM.ROMl} bytes, running...");
+						Emulate.Executor(i8080, 0);
+						FM.DumpAll(i8080, "dump");
 					}
 				}
 				catch (Exception E)
