@@ -1,9 +1,8 @@
-﻿//using System.Globalization;
-//using System.Collections;
+﻿using System.Diagnostics;
 
 namespace cs8080
 {
-    class Disassembler8080
+    class Disassembler
     {
     	private static int OPbytes(byte opcode)
     		{
@@ -277,7 +276,7 @@ namespace cs8080
             return opcodetable[opcode];
         }
 
-        public static void Disassembler(string path)
+        private static void Disassemble(string path)
         {
             byte[] opcodes = File.ReadAllBytes(path);
             int balen = opcodes.Length-2;
@@ -289,6 +288,16 @@ namespace cs8080
             Console.WriteLine($"{balen:x4}  {OPlookup(opcodes[balen], opcodes[balen+1], 0)}");
             balen++;
             Console.WriteLine($"{balen:x4}  {OPlookup(opcodes[balen], 0, 0)}");
+        }
+        
+        public static void DisASMmain(string filepath)
+        {
+            Stopwatch stopwatch = new();
+            stopwatch.Start();
+            Disassemble(filepath);
+            stopwatch.Stop();
+            TimeSpan ts = stopwatch.Elapsed;
+            Console.WriteLine("; Took {0:00}:{1:00}:{2:0000} to disassemble", ts.Minutes, ts.Seconds, ts.Milliseconds);
         }
     }
 }

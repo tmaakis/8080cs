@@ -1,21 +1,6 @@
-﻿using System.Diagnostics;
-
-namespace cs8080
+﻿namespace cs8080
 {
-    class Disassembler
-    {
-        public static void DisASMmain(string filepath)
-        {
-            Stopwatch stopwatch = new();
-            stopwatch.Start();
-            Disassembler8080.Disassembler(filepath);
-            stopwatch.Stop();
-            TimeSpan ts = stopwatch.Elapsed;
-            Console.WriteLine("; Took {0:00}:{1:00}:{2:0000} to disassemble", ts.Minutes, ts.Seconds, ts.Milliseconds);
-        }
-    }
-
-    class Emulate
+    class cs8080main
 	{
 		static void Main(string[] args)
 		{
@@ -29,14 +14,12 @@ namespace cs8080
                 try
                 {
 			        i8080.mem8080 = FM.ToRAM(args[0], i8080.mem8080);
-                    i8080 = Emulate8080.Executor(i8080);
-                    FM.MemDumpP(i8080.mem8080, "dump.bin");
-                    FM.StateDump(i8080, "statedump.bin");
+                    i8080 = Emulate.Executor(i8080);
+                    FM.DumpAll(i8080, "dump");
                 } 
                 catch
                 {
-                    FM.MemDumpP(i8080.mem8080, "dump.bin");
-                    FM.StateDump(i8080, "statedump.bin");
+                    FM.DumpAll(i8080, "dump");
                 }
             }
 		}

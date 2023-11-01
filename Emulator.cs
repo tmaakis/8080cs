@@ -161,7 +161,7 @@ namespace cs8080
 		}
 	}
 
-	class Emulate8080 : Instructions
+	class Emulate : Instructions
 	{
       private static State OpcodeHandler(State i8080)
 		{

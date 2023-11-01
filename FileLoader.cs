@@ -20,7 +20,7 @@ namespace cs8080
 			File.WriteAllBytes("dump.bin",mem);
 		}
 
-		public static void MemDumpP(byte[] mem, string Dumpfilename)
+		private static void MemDumpP(byte[] mem, string Dumpfilename)
 		{
 			string OldDumpfilename = $"{Dumpfilename}.old";
 			if (File.Exists(Dumpfilename))
@@ -34,7 +34,7 @@ namespace cs8080
 			MemDump(mem);
 		}
 
-		public static void StateDump(State i8080, string Dumpfilename) // debug.sh should be able to just read this file it creates
+		private static void StateDump(State i8080, string Dumpfilename) // debug.sh should be able to just read this file it creates
 		{
 			StringBuilder dump = new();
 			dump.Append($"8080cs @ {DateTime.Now.ToString(new CultureInfo("en-GB"))} \n \n");
@@ -44,6 +44,12 @@ namespace cs8080
 			dump.Append($"\nStack Pointer: \n{i8080.SP:x4} \n");
 			dump.Append($"Program Counter: \n{i8080.PC:x4} \n");
 			File.WriteAllText(Dumpfilename, dump.ToString());
+		}
+
+		public static void DumpAll(State i8080, string Dumpfilename)
+		{
+			MemDumpP(i8080.mem8080, $"{Dumpfilename}.bin");
+			StateDump(i8080, $"state{Dumpfilename}.txt");
 		}
 	}
 }

@@ -11,3 +11,4 @@ obj/Debug/net7.0/ref/8080cs.dll
 obj/Debug/net7.0/refint/8080cs.dll
 *.bin
 *.asm
+*.txt
