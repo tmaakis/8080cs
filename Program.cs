@@ -1,6 +1,6 @@
 ﻿namespace cs8080
 {
-	class cs8080main
+	class Main8080
 	{
 		static void Main(string[] args)
 		{
@@ -15,7 +15,7 @@
 				{
 					if (args[0] == "test")
 					{
-						cs8080test.test(args[1]);
+						Test8080.Test(args[1]);
 					}
 					else if(args[0] == "invaders.bin")
 					{

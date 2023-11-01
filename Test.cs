@@ -30,14 +30,14 @@
 			}
 		}
 	}
-	class cs8080test
+	class Test8080
 	{
-		public static void test(string testdir)
+		public static void Test(string testdir)
 		{
 			TestIO i8080 = new();
 			try
 			{
-				byte[] rom = File.ReadAllBytes($"{testdir}/TST8080.COM");
+				byte[] rom = File.ReadAllBytes($"{testdir}/cpudiag.bin");
 				Console.WriteLine("Loading ROM...");
 				i8080.mem = FM.LoadROM(rom, i8080.mem, 0x100);
 				FM.DumpAll(i8080, "dump");
