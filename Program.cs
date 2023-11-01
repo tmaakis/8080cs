@@ -17,12 +17,16 @@
 					{
 						cs8080test.test(args[1]);
 					}
+					else if(args[0] == "invaders.bin")
+					{
+						SpaceInvaders.SIrun("invaders.bin");
+					}
 					else
 					{
 						Console.WriteLine("Loading ROM...");
 						i8080.mem8080 = FM.LoadROM(File.ReadAllBytes(args[0]), i8080.mem8080, 0x0);
 						Console.WriteLine($"Done loading {FM.ROMl} bytes, running...");
-						Emulate.Executor(i8080, 0);
+						Emulate.Executor(i8080);
 						FM.DumpAll(i8080, "dump");
 					}
 				}
