@@ -4,13 +4,18 @@
     {
         static void Main(string[] args)
         {
+            var stopwatch = new Stopwatch();
+            stopwatch.Start();
             try
             {
                 Disassembler8080.Disassembler("invaders");
             }
-            catch (Exception ex)
+            catch
             {
-                Console.WriteLine($"Done, {ex}");
+                Console.WriteLine("");
+                stopwatch.Stop();
+                TimeSpan ts = stopwatch.Elapsed;
+                Console.WriteLine("{0:00}:{1:00}:{2:00}.{3:00}", ts.Hours, ts.Minutes, ts.Seconds, ts.Milliseconds / 10);
             }
         }
     }
