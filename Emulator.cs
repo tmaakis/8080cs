@@ -1,7 +1,4 @@
-﻿using System.Net.Sockets;
-using System.Runtime.CompilerServices;
-
-namespace cs8080
+﻿namespace cs8080
 {
 	class ConditionCodes
 	{
@@ -72,7 +69,7 @@ namespace cs8080
 				oddcount += splitWordhi(ans);
 				ans = splitWordlo(ans);
 			}
-			return oddcount % 2 == 0;
+			return oddcount % 2 != 0;
 		}
 
 		private static bool Carry(ushort ans)
@@ -93,6 +90,18 @@ namespace cs8080
 			i8080.CY = CarryF & Carry(ans);
 			i8080.AC = AuxCarryF & AuxCarry(ans);
 			return i8080;
+		}
+
+		public static byte B2f(State i8080)
+		{
+			byte flags;
+			flags = Convert.ToByte(i8080.CY);
+			flags |= 1 << 1;
+      	flags |= (byte)(Convert.ToByte(i8080.P) << 2);
+			flags |= (byte)(Convert.ToByte(i8080.AC) << 4);
+			flags |= (byte)(Convert.ToByte(i8080.Z) << 6);
+			flags |= (byte)(Convert.ToByte(i8080.S) << 7);
+			return flags;
 		}
 	}
 
@@ -168,6 +177,28 @@ namespace cs8080
 			ArithFlags.ParityF = true;
 			ArithFlags.CarryF = true;
 			ArithFlags.AuxCarryF = true;
+			return i8080;
+		}
+
+		protected static State RET(State i8080)
+		{
+			i8080.PC = toWord(i8080.mem8080[i8080.SP + 1], i8080.mem8080[i8080.SP]);
+			i8080.SP += 2;
+			return i8080;
+		}
+
+		protected static State JMP(State i8080, ushort adr)
+		{
+			i8080.PC = (ushort)(adr - 1); // Executor always increments PC by 1 so undo that 
+			return i8080;
+		}
+
+		protected static State CALL(State i8080, ushort adr)
+		{
+			i8080.mem8080[i8080.SP - 1] = splitWordhi(i8080.PC);
+			i8080.mem8080[i8080.SP - 2] = splitWordlo(i8080.PC);
+			i8080.SP -= 2;
+			JMP(i8080, adr);
 			return i8080;
 		}
 	}
@@ -394,76 +425,155 @@ namespace cs8080
 				case 0x9d: regpair = (ushort)(i8080.A + (~(i8080.L + Convert.ToByte(i8080.CY)) & 0xff) + 1); i8080.L = (byte)regpair; SBB(i8080, regpair); break;
 				case 0x9e: regpair = (ushort)(i8080.A + (~(ahl + Convert.ToByte(i8080.CY)) & 0xff) + 1); i8080.mem8080[toWord(i8080.H, i8080.L)] = (byte)regpair; SBB(i8080, regpair); break;
 				case 0x9f: regpair = (ushort)(i8080.A + (~(i8080.A + Convert.ToByte(i8080.CY)) & 0xff) + 1); i8080.A = (byte)regpair; SBB(i8080, regpair); break;
-				// ANA
-				case <= 0xa7 and >= 0xa0: break;
-				// XRA
-				case <= 0xaf and >= 0xa8: break;
-				// ORA
-				case <= 0xb7 and >= 0xb0: break;
-				// CMP
-				case <= 0xbf and >= 0xb8: break;
+				// ANA, accumulator logically AND'ed with specified reg
+				case 0xa0: i8080.A = (byte)(i8080.A & i8080.B); break;
+				case 0xa1: i8080.A = (byte)(i8080.A & i8080.C); break;
+				case 0xa2: i8080.A = (byte)(i8080.A & i8080.D); break;
+				case 0xa3: i8080.A = (byte)(i8080.A & i8080.E); break;
+				case 0xa4: i8080.A = (byte)(i8080.A & i8080.H); break;
+				case 0xa5: i8080.A = (byte)(i8080.A & i8080.L); break;
+				case 0xa6: i8080.A = (byte)(i8080.A & ahl); break;
+				case 0xa7: i8080.A = (byte)(i8080.A & i8080.A); break;
+				// XRA, accumulator XOR'd 
+				case 0xa8: i8080.A = (byte)(i8080.A ^ i8080.B); break;
+				case 0xa9: i8080.A = (byte)(i8080.A ^ i8080.C); break;
+				case 0xaa: i8080.A = (byte)(i8080.A ^ i8080.D); break;
+				case 0xab: i8080.A = (byte)(i8080.A ^ i8080.E); break;
+				case 0xac: i8080.A = (byte)(i8080.A ^ i8080.H); break;
+				case 0xad: i8080.A = (byte)(i8080.A ^ i8080.L); break;
+				case 0xae: i8080.A = (byte)(i8080.A ^ ahl); break;
+				case 0xaf: i8080.A = (byte)(i8080.A ^ i8080.A); break;
+				// ORA, accumulator OR'd
+				case 0xb0: i8080.A = (byte)(i8080.A | i8080.B); break;
+				case 0xb1: i8080.A = (byte)(i8080.A | i8080.C); break;
+				case 0xb2: i8080.A = (byte)(i8080.A | i8080.D); break;
+				case 0xb3: i8080.A = (byte)(i8080.A | i8080.E); break;
+				case 0xb4: i8080.A = (byte)(i8080.A | i8080.H); break;
+				case 0xb5: i8080.A = (byte)(i8080.A | i8080.L); break;
+				case 0xb6: i8080.A = (byte)(i8080.A | ahl); break;
+				case 0xb7: i8080.A = (byte)(i8080.A | i8080.A); break;
+				// CMP, i think it is like SUB but only setting conditional flags
+				case <= 0xbf and >= 0xb8: Console.WriteLine("Not implemented."); break;
 				// RNZ
-				case 0xc0: break;
+				case 0xc0: if (!i8080.Z) { RET(i8080); } break;
 				// POP
-				case 0xc1 or 0xd1 or 0xe1 or 0xf1: break;
-				case 0xc2: break; // JNZ
+				case 0xc1: i8080.C = i8080.mem8080[i8080.SP]; i8080.B = i8080.mem8080[i8080.SP + 1]; i8080.SP += 2; break;
+				case 0xd1: i8080.E = i8080.mem8080[i8080.SP]; i8080.D = i8080.mem8080[i8080.SP + 1]; i8080.SP += 2; break;
+				case 0xe1: i8080.L = i8080.mem8080[i8080.SP]; i8080.H = i8080.mem8080[i8080.SP + 1]; i8080.SP += 2; break;
+				case 0xf1:
+					i8080.CY = (i8080.SP & 1) > 0;
+					i8080.AC = (i8080.SP & (1 << 4)) > 0;
+					i8080.Z = (i8080.SP & (1 << 6)) > 0;
+					i8080.S = (i8080.SP & (1 << 7)) > 0;
+					i8080.A = i8080.mem8080[i8080.SP + 1];
+					i8080.SP += 2;
+					break;
+				// JNZ
+				case 0xc2: if (!i8080.Z) { JMP(i8080, nword); } break;
 				// JMP, jump to address
-				case 0xc3: i8080.PC = nextWord(i8080.mem8080, i8080.PC); i8080.PC--; break; // Executor always increments PC by 1 so undo that 
-				case 0xc4: break; // CNZ
+				case 0xc3: JMP(i8080, nword); break; // i don't think we need to increment PC by 2 since PC gets set to something else anyway
+				// CNZ
+				case 0xc4: if (!i8080.Z) { CALL(i8080, nword); } break;
 				// PUSH
-				case 0xc5 or 0xd5 or 0xe5 or 0xf5: break;
-				case 0xc6: break; // ADI
-				// RST
-				case 0xc7 or 0xcf or 0xd7 or 0xdf or 0xe7 or 0xef or 0xf7 or 0xff: break;
-				case 0xc8: break; // RZ
-				case 0xc9: break; // RET
-				case 0xca: break; // JZ
-				case 0xcc: break; // CZ
-				case 0xcd: break; // CALL
-				case 0xce: break; // ACI
-				case 0xd0: break; // RNC
-				case 0xd2: break; // JNC
-				case 0xd3: break; // OUT
-				case 0xd4: break; // CNC
-				case 0xd6: break; // SUI
-				case 0xd8: break; // RC
-				case 0xda: break; // JC
-				case 0xdb: break; // IN
-				case 0xdc: break; // CC
-				case 0xde: break; // SBI
-				case 0xe0: break; // RPO
-				case 0xe2: break; // JPO
-				case 0xe3: break; // XTHL
-				case 0xe4: break; // CPO
-				case 0xe6: break; // ANI
-				case 0xe8: break; // RPE
-				case 0xe9: break; // PCHL
-				case 0xea: break; // JPE
-				case 0xeb: break; // XCHG
-				case 0xec: break; // CPE
-				case 0xee: break; // XRI
-				case 0xf0: break; // RP
-				case 0xf2: break; // JP
-				case 0xf3: break; // DI
-				case 0xf4: break; // CP
-				case 0xf6: break; // ORI
-				case 0xf8: break; // RM
-				case 0xf9: break; // SPHL
-				case 0xfa: break; // JM
-				case 0xfb: break; // EI
-				case 0xfc: break; // CM
-				case 0xfe: break; // CPI
+				case 0xc5: i8080.mem8080[i8080.SP - 2] = i8080.C; i8080.mem8080[i8080.SP - 1] = i8080.B; i8080.SP -= 2; break;
+				case 0xd5: i8080.mem8080[i8080.SP - 2] = i8080.E; i8080.mem8080[i8080.SP - 1] = i8080.D; i8080.SP -= 2; break;
+				case 0xe5: i8080.mem8080[i8080.SP - 2] = i8080.L; i8080.mem8080[i8080.SP - 1] = i8080.H; i8080.SP -= 2; break;
+				case 0xf5: i8080.mem8080[i8080.SP - 2] = ArithFlags.B2f(i8080); i8080.SP -= 2; break;
+				// ADI
+				case 0xc6: i8080.A += nbyte; i8080.PC++; break;
+				// RST 0, 1, 2, 3, 4, 5, 6, 7
+				case 0xc7: CALL(i8080, 0x00); break;
+				case 0xcf: CALL(i8080, 0x08); break;
+				case 0xd7: CALL(i8080, 0x10); break;
+				case 0xdf: CALL(i8080, 0x18); break;
+				case 0xe7: CALL(i8080, 0x20); break;
+				case 0xef: CALL(i8080, 0x28); break;
+				case 0xf7: CALL(i8080, 0x30); break;
+				case 0xff: CALL(i8080, 0x38); break;
+				// RZ
+				case 0xc8: if (i8080.Z) { RET(i8080); } break;
+				// RET, return op
+				case 0xc9: RET(i8080); break;
+				// JZ
+				case 0xca: if (i8080.Z) { JMP(i8080, nword); } break;
+				// CZ
+				case 0xcc: if (i8080.Z) { CALL(i8080, nword); } break;
+				// CALL
+				case 0xcd: CALL(i8080, nword); break;
+				// ACI
+				case 0xce: i8080.A += (byte)(nbyte + Convert.ToByte(i8080.CY)); i8080.PC++; break;
+				// RNC
+				case 0xd0: if (!i8080.CY) { RET(i8080); } break;
+				// JNC
+				case 0xd2: if (!i8080.CY) { i8080.PC = (ushort)(nword - 1); } break;
+				// OUT
+				case 0xd3: Console.WriteLine("I/O not implemented."); break;
+				// CNC
+				case 0xd4: if (!i8080.CY) { CALL(i8080, nword); } break;
+				// SUI
+				case 0xd6: i8080.A -= nbyte; i8080.PC++; break;
+				// RC
+				case 0xd8: if (i8080.CY) { RET(i8080); } break;
+				// JC
+				case 0xda: if (i8080.CY) { i8080.PC = (ushort)(nword - 1); } break;
+				// IN
+				case 0xdb: Console.WriteLine("I/O not implemented."); break;
+				// CC
+				case 0xdc: if (i8080.CY) { CALL(i8080, nword); } break;
+				// SBI
+				case 0xde: i8080.A -= (byte)(nbyte - Convert.ToByte(i8080.CY)); i8080.PC++; break;
+				// RPO
+				case 0xe0: if (!i8080.P) { RET(i8080); } break;
+				// JPO
+				case 0xe2: if (!i8080.P) { i8080.PC = (ushort)(nword - 1); } break;
+				// XTHL
+				case 0xe3: (i8080.L, i8080.mem8080[i8080.SP]) = (i8080.mem8080[i8080.SP], i8080.L); (i8080.H, i8080.mem8080[i8080.SP+1]) = (i8080.mem8080[i8080.SP+1], i8080.H); break;
+				// CPO
+				case 0xe4: if (!i8080.P) { CALL(i8080, nword); } break;
+				// ANI
+				case 0xe6: i8080.A = (byte)(i8080.A & nbyte); i8080.PC++; break;
+				// RPE
+				case 0xe8: if (i8080.P) { RET(i8080); } break;
+				// PCHL
+				case 0xe9: i8080.PC = toWord(i8080.H, i8080.L); break;
+				// JPE
+				case 0xea: if (i8080.P) { i8080.PC = (ushort)(nword - 1); } break;
+				// XCHG
+				case 0xeb: (i8080.H, i8080.D) = (i8080.D, i8080.H); (i8080.L, i8080.E) = (i8080.E, i8080.L); break;
+				// CPE
+				case 0xec: if (i8080.P) { CALL(i8080, nword); } break;
+				// XRI
+				case 0xee: i8080.A = (byte)(i8080.A ^ nbyte); i8080.PC++; break;
+				// RP
+				case 0xf0: if (!i8080.S) { RET(i8080); } break;
+				// JP
+				case 0xf2: if (!i8080.S) { JMP(i8080, nword); } break;
+				// DI, disable interrupts
+				case 0xf3: Console.WriteLine("Not implemented."); break;
+				// CP
+				case 0xf4: if (!i8080.S) { CALL(i8080, nword); } break;
+				// ORI
+				case 0xf6: i8080.A = (byte)(i8080.A | nbyte); i8080.PC++; break;
+				// RM
+				case 0xf8: if (i8080.S) { RET(i8080); } break;
+				// SPHL
+				case 0xf9: i8080.SP = toWord(i8080.H, i8080.L); break;
+				// JM
+				case 0xfa: if (i8080.S) { JMP(i8080, nword); } break;
+				// EI, opposite of DI
+				case 0xfb: Console.WriteLine("Not implemented."); break;
+				// CM
+				case 0xfc: if (i8080.S) { CALL(i8080, nword); } break;
+				// CPI, SUI but only change flags
+				case 0xfe: Console.WriteLine("Not implemented."); break;
 			}
-			Console.WriteLine($"{i8080.mem8080[i8080.PC]:x2} Not implemented.");
 			return i8080;
 		}
 
 		public static State Executor(State i8080, ushort romlength)
 		{
-			//int i = 0;
 			while (i8080.PC < romlength)
 			{
-				//Console.Write($"{i:x2} {i8080.mem8080[i8080.PC]:x2}"); i++; // memory demp to the terminal with each instruction i guess
 				OpcodeHandler(i8080);
 				i8080.PC++;
 			}
