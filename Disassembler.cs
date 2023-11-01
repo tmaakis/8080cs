@@ -5,16 +5,16 @@ namespace cs8080
     class Disassembler
     {
     	private static int OPbytes(byte opcode)
-    		{
+    	{
             switch (opcode)
             {
                 case 0x01 or 0x11 or 0x21 or 0x22 or 0x2a or 0x2e or 0x31 or 0x32 or 0x3a or 0xc2 or 0xc3 or 0xc4 or 0xca or 0xcc or 0xcd or 0xd2 or 0xd4 or 0xda or 0xdc or 0xe2 or 0xe4 or 0xea or 0xec or 0xf2 or 0xf4 or 0xfa or 0xfc: return 3;
                 case 0x06 or 0x0e or 0x16 or 0x1e or 0x26 or 0x2e or 0x36 or 0x3e or 0xc6 or 0xce or 0xd3 or 0xd6 or 0xdb or 0xde or 0xe6 or 0xee or 0xf6 or 0xfe: return 2;
                 default: return 1;
-            };
+            }
         }
 
-        private static string OPlookup(byte opcode, byte opcodep1, byte opcodep2)
+        public static string OPlookup(byte opcode, byte opcodep1, byte opcodep2)
         {
             var opcodetable = new SortedList<int,string>(){
 				{0x00,"NOP"},
