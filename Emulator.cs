@@ -1,9 +1,79 @@
 ﻿namespace cs8080
 {
-	class ConditionCodes
+	class ArithFlags
+	{
+		public bool ZeroF = false, SignF = false, ParityF = false, CarryF = false, AuxCarryF = false;
+		protected bool Zero(ushort ans)
+		{
+			return (ans & 0xff) == 0;
+		}
+
+		protected bool Sign(ushort ans)
+		{
+			return Convert.ToBoolean((ans & 0xff) >> 7);
+		}
+
+		protected bool Parity(ushort ans) // left shift by 1 and add 0 if 0 and 1 if 1, then keep left shifting 1
+		{
+			byte oddcount = 0;
+			for (byte i = 1; i <= 8; i++)
+			{
+				ans = (ushort)(ans << 1);
+				oddcount += Ops.splitWordhi(ans);
+				ans = Ops.splitWordlo(ans);
+			}
+			return oddcount % 2 != 0;
+		}
+
+		protected bool Carry(ushort ans)
+		{
+			return ans > 0xff;
+		}
+
+		protected bool AuxCarry(ushort ans)
+		{
+			return (byte)((byte)(ans & 0xff) & 0b00011111) > 0xf;
+		}
+
+		public ArithFlags SetAll(ArithFlags flags)
+		{
+			flags.ZeroF = true;
+			flags.SignF = true;
+			flags.ParityF = true;
+			flags.CarryF = true;
+			flags.AuxCarryF = true;
+			return flags;
+		}
+
+		public ArithFlags SetAllNC(ArithFlags flags) // because sometimes we set carry flags in the instructions themselves
+		{
+			SetAll(flags);
+			flags.CarryF = false;
+			return flags;
+		}
+
+		public ArithFlags SetZSP(ArithFlags flags)
+		{
+			flags.ZeroF = true;
+			flags.SignF = true;
+			flags.ParityF = true;
+			return flags;
+		}
+	}
+
+	class ConditionCodes : ArithFlags
 	{
 		// this is 1 8-bit register containing 5 1 bit flags
 		public bool S = false, Z = false, P = false, CY = false, AC = false;
+		public State Write(State i8080, ArithFlags flags, ushort ans)
+		{
+			i8080.Z = flags.ZeroF & Zero(ans);
+			i8080.S = flags.SignF & Sign(ans);
+			i8080.P = flags.ParityF & Parity(ans);
+			i8080.CY = flags.CarryF & Carry(ans);
+			i8080.AC = flags.AuxCarryF & AuxCarry(ans);
+			return i8080;
+		}
 	}
 
 	class State : ConditionCodes
@@ -16,88 +86,42 @@
 
 	class Ops
 	{
-		protected static byte nextByte(byte[] mem, ushort PC)
+		public static byte nextByte(byte[] mem, ushort PC)
 		{
 			return mem[PC + 1];
 		}
 
-		protected static byte next2Byte(byte[] mem, ushort PC)
+		public static byte next2Byte(byte[] mem, ushort PC)
 		{
 			return mem[PC + 2];
 		}
 
-		protected static ushort toWord(byte hi/* left byte */, byte lo/* right byte */) // hi lo is big endian but whatever
+		public static ushort toWord(byte hi/* left byte */, byte lo/* right byte */) // hi lo is big endian but whatever
 		{
 			return (ushort)(hi << 8 | lo);
 		}
 
-		protected static ushort nextWord(byte[] mem, ushort PC)
+		public static ushort nextWord(byte[] mem, ushort PC)
 		{
 			return toWord(mem[PC + 2], mem[PC + 1]);
 		}
 
-		protected static byte splitWordlo(ushort word)
+		public static byte splitWordlo(ushort word)
 		{
 			return (byte)word;
 		}
 
-		protected static byte splitWordhi(ushort word)
+		public static byte splitWordhi(ushort word)
 		{
 			return (byte)(word >> 8);
 		}
-	}
 
-	class ArithFlags : Ops
-	{
-		public static bool ZeroF = false, SignF = false, ParityF = false, CarryF = false, AuxCarryF = false;
-		private static bool Zero(ushort ans)
-		{
-			return (ans & 0xff) == 0;
-		}
-
-		private static bool Sign(ushort ans)
-		{
-			return Convert.ToBoolean((ans & 0xff) >> 7);
-		}
-
-		private static bool Parity(ushort ans) // left shift by 1 and add 0 if 0 and 1 if 1, then keep left shifting 1
-		{
-			byte oddcount = 0;
-			for (byte i = 1; i <= 8; i++)
-			{
-				ans = (ushort)(ans << 1);
-				oddcount += splitWordhi(ans);
-				ans = splitWordlo(ans);
-			}
-			return oddcount % 2 != 0;
-		}
-
-		private static bool Carry(ushort ans)
-		{
-			return ans > 0xff;
-		}
-
-		private static bool AuxCarry(ushort ans)
-		{
-			return (byte)((byte)(ans & 0xff) & 0b00011111) > 0xf;
-		}
-
-		public static State Set(State i8080, ushort ans)
-		{
-			i8080.Z = ZeroF & Zero(ans);
-			i8080.S = SignF & Sign(ans);
-			i8080.P = ParityF & Parity(ans);
-			i8080.CY = CarryF & Carry(ans);
-			i8080.AC = AuxCarryF & AuxCarry(ans);
-			return i8080;
-		}
-
-		public static byte B2f(State i8080)
+		public static byte B2F(State i8080)
 		{
 			byte flags;
 			flags = Convert.ToByte(i8080.CY);
 			flags |= 1 << 1;
-      	flags |= (byte)(Convert.ToByte(i8080.P) << 2);
+			flags |= (byte)(Convert.ToByte(i8080.P) << 2);
 			flags |= (byte)(Convert.ToByte(i8080.AC) << 4);
 			flags |= (byte)(Convert.ToByte(i8080.Z) << 6);
 			flags |= (byte)(Convert.ToByte(i8080.S) << 7);
@@ -107,19 +131,19 @@
 
 	class Instructions : Ops
 	{
-		protected static State INR(State i8080)
+		protected static State INR(State i8080, ArithFlags flags)
 		{
-			ArithFlags.ZeroF = true;
-			ArithFlags.SignF = true;
-			ArithFlags.ParityF = true;
+			flags.ZeroF = true;
+			flags.SignF = true;
+			flags.ParityF = true;
 			return i8080;
 		}
 
-		protected static State DCR(State i8080)
+		protected static State DCR(State i8080, ArithFlags flags)
 		{
-			ArithFlags.ZeroF = true;
-			ArithFlags.SignF = true;
-			ArithFlags.ParityF = true;
+			flags.ZeroF = true;
+			flags.SignF = true;
+			flags.ParityF = true;
 			return i8080;
 		}
 
@@ -129,54 +153,6 @@
 			i8080.CY = Convert.ToBoolean(resultpair >> 16); // right shift by 16 and if anything is left, carry bit is set to 1
 			i8080.H = splitWordhi((ushort)resultpair);
 			i8080.L = splitWordlo((ushort)resultpair);
-			return i8080;
-		}
-
-		protected static State DAA(State i8080)
-		{
-			ArithFlags.ZeroF = true;
-			ArithFlags.SignF = true;
-			ArithFlags.ParityF = true;
-			return i8080;
-		}
-
-		protected static State ADD(State i8080)
-		{
-			ArithFlags.ZeroF = true;
-			ArithFlags.SignF = true;
-			ArithFlags.ParityF = true;
-			ArithFlags.CarryF = true;
-			ArithFlags.AuxCarryF = true;
-			return i8080;
-		}
-
-		protected static State ADC(State i8080)
-		{
-			ArithFlags.ZeroF = true;
-			ArithFlags.SignF = true;
-			ArithFlags.ParityF = true;
-			ArithFlags.CarryF = true;
-			ArithFlags.AuxCarryF = true;
-			return i8080;
-		}
-
-		protected static State SUB(State i8080, ushort ans)
-		{
-			ArithFlags.ZeroF = true;
-			ArithFlags.SignF = true;
-			ArithFlags.ParityF = true;
-			ArithFlags.CarryF = true;
-			ArithFlags.AuxCarryF = true;
-			return i8080;
-		}
-
-		protected static State SBB(State i8080, ushort ans)
-		{
-			ArithFlags.ZeroF = true;
-			ArithFlags.SignF = true;
-			ArithFlags.ParityF = true;
-			ArithFlags.CarryF = true;
-			ArithFlags.AuxCarryF = true;
 			return i8080;
 		}
 
@@ -205,7 +181,7 @@
 
 	class Emulate : Instructions
 	{
-		private static State OpcodeHandler(State i8080)
+		private static State OpcodeHandler(State i8080, ArithFlags flags)
 		{
 			byte nbyte = nextByte(i8080.mem8080, i8080.PC), nbyte2 = next2Byte(i8080.mem8080, i8080.PC), leftbit, rightbit, ahl = i8080.mem8080[toWord(i8080.H, i8080.L)];
 			ushort nword = nextWord(i8080.mem8080, i8080.PC), regpair; // we use regpair because it made sense for a few things, and we can reuse this for other ushort var requirements
@@ -296,7 +272,7 @@
 					i8080.mem8080[nword + 1] = i8080.H;
 					i8080.PC += 2;
 					break;
-				// DAA, accumulator's 8 bit number is turned into 2 4-bit binary-coded-decimal digits (w h a t)
+				// DAA, accumulator's 8 bit number is turned into 2 4-bit binary-coded-decimal digits (w h a t) (SetAllNC)
 				case 0x27:
 					if ((byte)(i8080.A & 0x0f) > 0x09 || i8080.AC)
 					{
@@ -408,23 +384,23 @@
 				case 0x8e: i8080.A += (byte)(ahl + Convert.ToByte(i8080.CY)); break;
 				case 0x8f: i8080.A += (byte)(i8080.A + Convert.ToByte(i8080.CY)); break;
 				// SUB, convert the register to 2's complement then add
-				case 0x90: regpair = (ushort)(i8080.A + (~i8080.B & 0xff) + 1); i8080.B = (byte)regpair; SUB(i8080, regpair); break;
-				case 0x91: regpair = (ushort)(i8080.A + (~i8080.C & 0xff) + 1); i8080.C = (byte)regpair; SUB(i8080, regpair); break;
-				case 0x92: regpair = (ushort)(i8080.A + (~i8080.D & 0xff) + 1); i8080.D = (byte)regpair; SUB(i8080, regpair); break;
-				case 0x93: regpair = (ushort)(i8080.A + (~i8080.E & 0xff) + 1); i8080.E = (byte)regpair; SUB(i8080, regpair); break;
-				case 0x94: regpair = (ushort)(i8080.A + (~i8080.H & 0xff) + 1); i8080.H = (byte)regpair; SUB(i8080, regpair); break;
-				case 0x95: regpair = (ushort)(i8080.A + (~i8080.L & 0xff) + 1); i8080.L = (byte)regpair; SUB(i8080, regpair); break;
-				case 0x96: regpair = (ushort)(i8080.A + (~ahl & 0xff) + 1); i8080.mem8080[toWord(i8080.H, i8080.L)] = (byte)regpair; SUB(i8080, regpair); break;
+				case 0x90: regpair = (ushort)(i8080.A + (~i8080.B & 0xff) + 1); i8080.B = (byte)regpair; break;
+				case 0x91: regpair = (ushort)(i8080.A + (~i8080.C & 0xff) + 1); i8080.C = (byte)regpair; break;
+				case 0x92: regpair = (ushort)(i8080.A + (~i8080.D & 0xff) + 1); i8080.D = (byte)regpair; break;
+				case 0x93: regpair = (ushort)(i8080.A + (~i8080.E & 0xff) + 1); i8080.E = (byte)regpair; break;
+				case 0x94: regpair = (ushort)(i8080.A + (~i8080.H & 0xff) + 1); i8080.H = (byte)regpair; break;
+				case 0x95: regpair = (ushort)(i8080.A + (~i8080.L & 0xff) + 1); i8080.L = (byte)regpair; break;
+				case 0x96: regpair = (ushort)(i8080.A + (~ahl & 0xff) + 1); i8080.mem8080[toWord(i8080.H, i8080.L)] = (byte)regpair; break;
 				case 0x97: i8080.A = 0x0; i8080.CY = false; break; // subbing A is very simple
 				// SBB, SUB but with a carry added to the register
-				case 0x98: regpair = (ushort)(i8080.A + (~(i8080.B + Convert.ToByte(i8080.CY)) & 0xff) + 1); i8080.B = (byte)regpair; SBB(i8080, regpair); break;
-				case 0x99: regpair = (ushort)(i8080.A + (~(i8080.C + Convert.ToByte(i8080.CY)) & 0xff) + 1); i8080.C = (byte)regpair; SBB(i8080, regpair); break;
-				case 0x9a: regpair = (ushort)(i8080.A + (~(i8080.D + Convert.ToByte(i8080.CY)) & 0xff) + 1); i8080.D = (byte)regpair; SBB(i8080, regpair); break;
-				case 0x9b: regpair = (ushort)(i8080.A + (~(i8080.E + Convert.ToByte(i8080.CY)) & 0xff) + 1); i8080.E = (byte)regpair; SBB(i8080, regpair); break;
-				case 0x9c: regpair = (ushort)(i8080.A + (~(i8080.H + Convert.ToByte(i8080.CY)) & 0xff) + 1); i8080.H = (byte)regpair; SBB(i8080, regpair); break;
-				case 0x9d: regpair = (ushort)(i8080.A + (~(i8080.L + Convert.ToByte(i8080.CY)) & 0xff) + 1); i8080.L = (byte)regpair; SBB(i8080, regpair); break;
-				case 0x9e: regpair = (ushort)(i8080.A + (~(ahl + Convert.ToByte(i8080.CY)) & 0xff) + 1); i8080.mem8080[toWord(i8080.H, i8080.L)] = (byte)regpair; SBB(i8080, regpair); break;
-				case 0x9f: regpair = (ushort)(i8080.A + (~(i8080.A + Convert.ToByte(i8080.CY)) & 0xff) + 1); i8080.A = (byte)regpair; SBB(i8080, regpair); break;
+				case 0x98: regpair = (ushort)(i8080.A + (~(i8080.B + Convert.ToByte(i8080.CY)) & 0xff) + 1); i8080.B = (byte)regpair; break;
+				case 0x99: regpair = (ushort)(i8080.A + (~(i8080.C + Convert.ToByte(i8080.CY)) & 0xff) + 1); i8080.C = (byte)regpair; break;
+				case 0x9a: regpair = (ushort)(i8080.A + (~(i8080.D + Convert.ToByte(i8080.CY)) & 0xff) + 1); i8080.D = (byte)regpair; break;
+				case 0x9b: regpair = (ushort)(i8080.A + (~(i8080.E + Convert.ToByte(i8080.CY)) & 0xff) + 1); i8080.E = (byte)regpair; break;
+				case 0x9c: regpair = (ushort)(i8080.A + (~(i8080.H + Convert.ToByte(i8080.CY)) & 0xff) + 1); i8080.H = (byte)regpair; break;
+				case 0x9d: regpair = (ushort)(i8080.A + (~(i8080.L + Convert.ToByte(i8080.CY)) & 0xff) + 1); i8080.L = (byte)regpair; break;
+				case 0x9e: regpair = (ushort)(i8080.A + (~(ahl + Convert.ToByte(i8080.CY)) & 0xff) + 1); i8080.mem8080[toWord(i8080.H, i8080.L)] = (byte)regpair; break;
+				case 0x9f: regpair = (ushort)(i8080.A + (~(i8080.A + Convert.ToByte(i8080.CY)) & 0xff) + 1); i8080.A = (byte)regpair; break;
 				// ANA, accumulator logically AND'ed with specified reg
 				case 0xa0: i8080.A = (byte)(i8080.A & i8080.B); break;
 				case 0xa1: i8080.A = (byte)(i8080.A & i8080.C); break;
@@ -478,7 +454,7 @@
 				case 0xc5: i8080.mem8080[i8080.SP - 2] = i8080.C; i8080.mem8080[i8080.SP - 1] = i8080.B; i8080.SP -= 2; break;
 				case 0xd5: i8080.mem8080[i8080.SP - 2] = i8080.E; i8080.mem8080[i8080.SP - 1] = i8080.D; i8080.SP -= 2; break;
 				case 0xe5: i8080.mem8080[i8080.SP - 2] = i8080.L; i8080.mem8080[i8080.SP - 1] = i8080.H; i8080.SP -= 2; break;
-				case 0xf5: i8080.mem8080[i8080.SP - 2] = ArithFlags.B2f(i8080); i8080.SP -= 2; break;
+				case 0xf5: i8080.mem8080[i8080.SP - 2] = B2F(i8080); i8080.SP -= 2; break;
 				// ADI
 				case 0xc6: i8080.A += nbyte; i8080.PC++; break;
 				// RST 0, 1, 2, 3, 4, 5, 6, 7
@@ -574,7 +550,7 @@
 		{
 			while (i8080.PC < romlength)
 			{
-				OpcodeHandler(i8080);
+				OpcodeHandler(i8080, new ArithFlags());
 				i8080.PC++;
 			}
 			return i8080;
