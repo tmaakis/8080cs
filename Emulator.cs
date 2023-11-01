@@ -1,7 +1,4 @@
-﻿using System.Collections;
-using System.Runtime.InteropServices.Marshalling;
-
-namespace cs8080
+﻿namespace cs8080
 {
 	class ConditionCodes
 	{
@@ -12,34 +9,100 @@ namespace cs8080
 	class State : ConditionCodes
 	{
 		private const ushort MaxMem = 65535; // 64k of ram
-		public byte B=0, C=0, D=0, E=0, H=0, L=0, M=0, A=0; // 7 8-bit general purpose registers (can be used as 16 bit in pairs of 2) and a special accumulator register
+		public byte B=0x0, C=0x0, D=0, E=0, H=0x0, L=0x0, M=0, A=0xf3; // 7 8-bit general purpose registers (can be used as 16 bit in pairs of 2) and a special accumulator register
 		public ushort SP=0, PC=0; // stack pointer that keeps return address, program counter that loads the next instruction to execute
 		public byte[] mem8080 = new byte[MaxMem]; // 64k of ram as a byte array
 	}
 
-	class Instructions
+	class Ops
 	{
-		private static byte nextByte(byte[] mem, ushort PC)
+        protected static byte nextByte(byte[] mem, ushort PC)
+        {
+            return mem[PC + 1];
+        }
+
+        protected static byte next2Byte(byte[] mem, ushort PC)
+        {
+            return mem[PC + 2];
+        }
+
+        protected static ushort toWord(byte hi/* left byte */, byte lo/* right byte */) // hi lo because little endian consistency
+        {
+            return (ushort)(hi << 8 | lo);
+        }
+
+        protected static ushort nextWord(byte[] mem, ushort PC)
+        {
+            return toWord(mem[PC + 2], mem[PC + 1]);
+        }
+
+        protected static byte splitWordlo(ushort word)
+        {
+            return (byte)word;
+        }
+
+        protected static byte splitWordhi(ushort word)
+        {
+            return (byte)(word >> 8);
+        }
+    }
+
+	class ArithFlags : Ops
+	{
+		public static bool ZeroF = false, SignF = false, ParityF = false, CarryF = false, AuxCarryF = false;
+		private static bool Zero(ushort ans)
 		{
-			return mem[PC+1];
+			return (ans & 0xff) == 0;
 		}
 
-		private static byte next2Byte(byte[] mem, ushort PC)
+		private static bool Sign(ushort ans)
 		{
-			return mem[PC+2];
-		}
+            return Convert.ToBoolean((ans & 0xff) >> 7);
+        }
 
-		private static ushort toWord(byte hi/* left byte */, byte lo/* right byte */) // hi lo because little endian consistency
+        private static bool Parity(ushort ans) // left shift by 1 and add 0 if 0 and 1 if 1, then keep left shifting 1
+        {
+			byte oddcount=0;
+			for (byte i = 1; i <= 8; i++)
+			{
+				ans = (ushort)(ans << 1);
+				oddcount += splitWordhi(ans);
+				ans = splitWordlo(ans);
+			}
+            return oddcount%2 == 0;
+        }
+
+        private static bool Carry(ushort ans)
+        {
+            return ans > 0xff;
+        }
+
+        public static State Set(State i8080, ushort ans)
 		{
-			return (ushort)(hi << 8 | lo);
+			if (ZeroF)
+			{
+				i8080.Z = Zero(ans);
+			}
+			if (SignF)
+			{
+				i8080.S = Sign(ans);
+			}
+			if (ParityF)
+			{
+				i8080.P = Parity(ans);
+			}
+			if (CarryF)
+			{
+				i8080.CY = Carry(ans);
+			}
+			return i8080;
 		}
+	}
 
-		private static ushort nextWord(byte[] mem, ushort PC)
-		{
-			return toWord(mem[PC+2],mem[PC+1]);
-		}
 
-		protected static State NOP(State i8080)
+    class Instructions : Ops
+	{
+        protected static State NOP(State i8080)
 		{
 			return i8080;
 		}
@@ -54,8 +117,8 @@ namespace cs8080
 				case 0x31: i8080.SP = nextWord(i8080.mem8080, i8080.PC); break;
 				default: break;
 			}
-         i8080.PC += 2;
-      	return i8080;
+		i8080.PC += 2;
+		return i8080;
 		}
 
 		protected static State STAX(State i8080)
@@ -68,42 +131,35 @@ namespace cs8080
 			return i8080;
 		}
 
-		protected static State INX(State i8080)
-		{
-			byte reg1=0,reg2=0,indicator=0;
-			switch (i8080.mem8080[i8080.PC])
-			{
-				case 0x01: indicator = 1; reg1 = i8080.B; reg2 = i8080.C; break;
-				case 0x11: indicator = 2; reg1 = i8080.D; reg2 = i8080.E; break;
-				case 0x21: indicator = 3; reg1 = i8080.H; reg2 = i8080.L; break;
-				case 0x31: i8080.SP++; return i8080;
-				default: return i8080;
-			}
-			ushort regpair = toWord(reg1, reg2);
-			regpair++;
-			reg1 = BitConverter.GetBytes(regpair)[0];
-			reg2 = BitConverter.GetBytes(regpair)[1];
-			switch (indicator)
-			{
-				case 1: i8080.B = reg1; i8080.C = reg2; break;
-				case 2: i8080.D = reg1; i8080.E = reg2; break;
-				case 3: i8080.H = reg1; i8080.L = reg2; break;
-			}
-			return i8080;
-		}
+        protected static State INX(State i8080) // join registers to word, then decrement, then split word
+        {
+            ushort regpair;
+            switch (i8080.mem8080[i8080.PC])
+            {
+                case 0x0b: regpair = toWord(i8080.B, i8080.C); regpair++; i8080.B = splitWordhi(regpair); i8080.C = splitWordlo(regpair); break;
+                case 0x1b: regpair = toWord(i8080.D, i8080.E); regpair++; i8080.D = splitWordhi(regpair); i8080.E = splitWordlo(regpair); break;
+                case 0x2b: regpair = toWord(i8080.H, i8080.L); regpair++; i8080.H = splitWordhi(regpair); i8080.L = splitWordlo(regpair); break;
+                case 0x3b: i8080.SP--; return i8080;
+                default: break;
+            }
+            return i8080;
+        }
 
-		protected static State INR(State i8080)
+        protected static State INR(State i8080)
 		{
-			switch (i8080.mem8080[i8080.PC])
+			ArithFlags.ZeroF = true;
+            ArithFlags.SignF = true;
+            ArithFlags.ParityF = true;
+            switch (i8080.mem8080[i8080.PC])
 			{
-				case 0x04: i8080.B++; break;
-				case 0x0c: i8080.C++; break;
-				case 0x14: i8080.D++; break;
-				case 0x1c: i8080.E++; break;
-				case 0x24: i8080.H++; break;
-				case 0x2c: i8080.L++; break;
-				case 0x34: i8080.M++; break;
-				case 0x3c: i8080.A++; break;
+				case 0x04: i8080.B++; ArithFlags.Set(i8080, i8080.B); break;
+				case 0x0c: i8080.C++; ArithFlags.Set(i8080, i8080.C); break;
+				case 0x14: i8080.D++; ArithFlags.Set(i8080, i8080.D); break;
+				case 0x1c: i8080.E++; ArithFlags.Set(i8080, i8080.E); break;
+				case 0x24: i8080.H++; ArithFlags.Set(i8080, i8080.H); break;
+				case 0x2c: i8080.L++; ArithFlags.Set(i8080, i8080.L); break;
+				case 0x34: i8080.M++; ArithFlags.Set(i8080, i8080.M); break;
+				case 0x3c: i8080.A++; ArithFlags.Set(i8080, i8080.A); break;
 				default: break;
 			}
 			return i8080;
@@ -111,17 +167,20 @@ namespace cs8080
 
 		protected static State DCR(State i8080)
 		{
-			switch (i8080.mem8080[i8080.PC])
+            ArithFlags.ZeroF = true;
+            ArithFlags.SignF = true;
+            ArithFlags.ParityF = true;
+            switch (i8080.mem8080[i8080.PC])
 			{
-				case 0x04: i8080.B--; break;
-				case 0x0c: i8080.C--; break;
-				case 0x14: i8080.D--; break;
-				case 0x1c: i8080.E--; break;
-				case 0x24: i8080.H--; break;
-				case 0x2c: i8080.L--; break;
-				case 0x34: i8080.M--; break;
-				case 0x3c: i8080.A--; break;
-				default: break;
+                case 0x04: i8080.B--; ArithFlags.Set(i8080, i8080.B); break;
+                case 0x0c: i8080.C--; ArithFlags.Set(i8080, i8080.C); break;
+                case 0x14: i8080.D--; ArithFlags.Set(i8080, i8080.D); break;
+                case 0x1c: i8080.E--; ArithFlags.Set(i8080, i8080.E); break;
+                case 0x24: i8080.H--; ArithFlags.Set(i8080, i8080.H); break;
+                case 0x2c: i8080.L--; ArithFlags.Set(i8080, i8080.L); break;
+                case 0x34: i8080.M--; ArithFlags.Set(i8080, i8080.M); break;
+                case 0x3c: i8080.A--; ArithFlags.Set(i8080, i8080.A); break;
+                default: break;
 			}
 			return i8080;
 		}
@@ -153,7 +212,57 @@ namespace cs8080
 			return i8080;
 		}
 
-		protected static State JMP(State i8080)
+        protected static State DAD(State i8080)
+        {
+			int addpair = 0x0, resultpair; // 32 bit int because we need 1 overflow bit for carry
+            switch (i8080.mem8080[i8080.PC])
+            {
+                case 0x09: addpair = toWord(i8080.B, i8080.C); break;
+                case 0x19: addpair = toWord(i8080.D, i8080.E); break;
+                case 0x29: addpair = toWord(i8080.H, i8080.L); break;
+                case 0x39: addpair = i8080.SP; break;
+                default: break;
+            }
+            resultpair = addpair + toWord(i8080.H,i8080.L);
+			i8080.CY = Convert.ToBoolean(resultpair >> 16); // right shift by 16 and if anything is left, carry bit is set to 1
+            i8080.H = splitWordhi((ushort)resultpair);
+            i8080.L = splitWordlo((ushort)resultpair);
+            return i8080;
+        }
+
+        protected static State LDAX(State i8080)
+        {
+            switch (i8080.mem8080[i8080.PC])
+            {
+                case 0x0a: i8080.A = i8080.mem8080[toWord(i8080.B, i8080.C)]; break;
+                case 0x1a: i8080.A = i8080.mem8080[toWord(i8080.D, i8080.E)]; break;
+            }
+            return i8080;
+        }
+
+        protected static State DCX(State i8080) // join registers to word, then decrement, then split word
+        {
+			ushort regpair;
+            switch (i8080.mem8080[i8080.PC])
+            {
+                case 0x0b: regpair = toWord(i8080.B, i8080.C); regpair--; i8080.B = splitWordhi(regpair); i8080.C = splitWordlo(regpair); break;
+                case 0x1b: regpair = toWord(i8080.D, i8080.E); regpair--; i8080.D = splitWordhi(regpair); i8080.E = splitWordlo(regpair); break;
+                case 0x2b: regpair = toWord(i8080.H, i8080.L); regpair--; i8080.H = splitWordhi(regpair); i8080.L = splitWordlo(regpair); break;
+                case 0x3b: i8080.SP--; return i8080;
+                default: break;
+            }
+            return i8080;
+        }
+
+        protected static State RRC(State i8080)
+        {
+            byte x = i8080.A;
+            i8080.A = (byte)(((x & 1) << 7) | (x >> 1));
+            i8080.CY = 1 == (x & 1);
+            return i8080;
+        }
+
+        protected static State JMP(State i8080)
 		{
 			i8080.PC = nextWord(i8080.mem8080, i8080.PC);
 			i8080.PC--; // the program always increments PC by 1 so undo that
@@ -163,7 +272,7 @@ namespace cs8080
 
 	class Emulate : Instructions
 	{
-      private static State OpcodeHandler(State i8080)
+		private static State OpcodeHandler(State i8080)
 		{
 			switch (i8080.mem8080[i8080.PC])
 			{
@@ -183,12 +292,12 @@ namespace cs8080
 				case 0x06 or 0x0e or 0x16 or 0x1e or 0x26 or 0x2e or 0x36 or 0x3e: return MVI(i8080);
 				case 0x07: return RLC(i8080); // RLC
 				// DAD instruction
-				case 0x09 or 0x19 or 0x29 or 0x39: break;
+				case 0x09 or 0x19 or 0x29 or 0x39: return DAD(i8080);
 				// LDAX instruction
-				case 0x0a or 0x1a: break;
+				case 0x0a or 0x1a: return LDAX(i8080);
 				// DCX instruction
-				case 0x0b or 0x1b or 0x2b or 0x3b: break;
-				case 0x0f: break; // RRC
+				case 0x0b or 0x1b or 0x2b or 0x3b: return DCX(i8080);
+				case 0x0f: return RRC(i8080); // RRC
 				case 0x17: break; // RAL
 				case 0x1f: break; // RAR
 				case 0x22: break; // SHLD
@@ -269,7 +378,7 @@ namespace cs8080
 				case 0xfc: break; // CM
 				case 0xfe: break; // CPI
 			}
-			Console.WriteLine(" Not implemented.");
+			Console.WriteLine($"{i8080.mem8080[i8080.PC]} Not implemented.");
 			return i8080;
 		}
 
