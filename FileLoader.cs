@@ -5,19 +5,13 @@ namespace cs8080
 {
 	class FM
 	{
-		public static byte[] ToRAM(string filepath, byte[] mem)
+		public static byte[] LoadROM(byte[] rom, byte[] mem)
 		{
-			byte[] CachedROM = File.ReadAllBytes(filepath);
-			for (int i = 0; i < CachedROM.Length; i++)
+			for (int i = 0; i < rom.Length; i++)
 			{
-				mem[i] = CachedROM[i];
+				mem[i] = rom[i];
 			}
 			return mem;
-      }
-
-		private static void MemDump(byte[] mem)
-		{
-			File.WriteAllBytes("dump.bin",mem);
 		}
 
 		private static void MemDumpP(byte[] mem, string Dumpfilename)
@@ -29,9 +23,9 @@ namespace cs8080
 				{
 					File.Delete(OldDumpfilename);
 				}
-				File.Move(Dumpfilename,OldDumpfilename);
+				File.Move(Dumpfilename, OldDumpfilename);
 			}
-			MemDump(mem);
+			File.WriteAllBytes("dump.bin", mem);
 		}
 
 		private static void StateDump(State i8080, string Dumpfilename) // debug.sh should be able to just read this file it creates
