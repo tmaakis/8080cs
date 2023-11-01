@@ -1,4 +1,5 @@
 ﻿using System.Net.Sockets;
+using System.Runtime.CompilerServices;
 
 namespace cs8080
 {
@@ -11,7 +12,7 @@ namespace cs8080
 	class State : ConditionCodes
 	{
 		private const ushort MaxMem = 65535; // 64k of ram
-		public byte B = 0x0, C = 0x0, D = 0, E = 0, H = 0x0, L = 0x0, M = 0, A = 0x0; // 7 8-bit general purpose registers (can be used as 16 bit in pairs of 2) and a special accumulator register
+		public byte B = 0x0, C = 0x0, D = 0, E = 0, H = 0x0, L = 0x0, A = 0x0; // 7 8-bit general purpose registers (can be used as 16 bit in pairs of 2) and a special accumulator register
 		public ushort SP = 0, PC = 0; // stack pointer that keeps return address, program counter that loads the next instruction to execute
 		public byte[] mem8080 = new byte[MaxMem]; // 64k of ram as a byte array
 	}
@@ -91,11 +92,6 @@ namespace cs8080
 
 	class Instructions : Ops
 	{
-		protected static State NOP(State i8080)
-		{
-			return i8080;
-		}
-
 		protected static State LXI(State i8080)
 		{
 			switch (i8080.mem8080[i8080.PC]) // sets the registers to operate on
@@ -147,7 +143,7 @@ namespace cs8080
 				case 0x1c: i8080.E++; ArithFlags.Set(i8080, i8080.E); break;
 				case 0x24: i8080.H++; ArithFlags.Set(i8080, i8080.H); break;
 				case 0x2c: i8080.L++; ArithFlags.Set(i8080, i8080.L); break;
-				case 0x34: i8080.M++; ArithFlags.Set(i8080, i8080.M); break;
+				case 0x34: i8080.mem8080[toWord(i8080.H, i8080.L)] = (byte)(i8080.mem8080[toWord(i8080.H, i8080.L)]+1); break;
 				case 0x3c: i8080.A++; ArithFlags.Set(i8080, i8080.A); break;
 				default: break;
 			}
@@ -167,7 +163,7 @@ namespace cs8080
 				case 0x1c: i8080.E--; ArithFlags.Set(i8080, i8080.E); break;
 				case 0x24: i8080.H--; ArithFlags.Set(i8080, i8080.H); break;
 				case 0x2c: i8080.L--; ArithFlags.Set(i8080, i8080.L); break;
-				case 0x34: i8080.M--; ArithFlags.Set(i8080, i8080.M); break;
+				case 0x34: i8080.mem8080[toWord(i8080.H, i8080.L)] = (byte)(i8080.mem8080[toWord(i8080.H, i8080.L)] - 1); break;
 				case 0x3c: i8080.A--; ArithFlags.Set(i8080, i8080.A); break;
 				default: break;
 			}
@@ -185,7 +181,7 @@ namespace cs8080
 				case 0x1e: i8080.E = byte2; break;
 				case 0x26: i8080.H = byte2; break;
 				case 0x2e: i8080.L = byte2; break;
-				case 0x36: i8080.M = byte2; break;
+				case 0x36: i8080.mem8080[toWord(i8080.H, i8080.L)] = byte2; break;
 				case 0x3e: i8080.A = byte2; break;
 				default: break;
 			}
@@ -335,6 +331,78 @@ namespace cs8080
 			return i8080;
 		}
 
+		protected static State MOV(State i8080)
+		{
+			switch (i8080.mem8080[i8080.PC])
+			{
+				case 0x40: i8080.B = i8080.B; break;
+				case 0x41: i8080.B = i8080.C; break;
+				case 0x42: i8080.B = i8080.D; break;
+				case 0x43: i8080.B = i8080.E; break;
+				case 0x44: i8080.B = i8080.H; break;
+				case 0x45: i8080.B = i8080.L; break;
+				case 0x46: i8080.B = i8080.mem8080[toWord(i8080.H, i8080.L)]; break;
+				case 0x47: i8080.B = i8080.A; break;
+				case 0x48: i8080.C = i8080.B; break;
+				case 0x49: i8080.C = i8080.C; break;
+				case 0x4a: i8080.C = i8080.D; break;
+				case 0x4b: i8080.C = i8080.E; break;
+				case 0x4c: i8080.C = i8080.H; break;
+				case 0x4d: i8080.C = i8080.L; break;
+				case 0x4e: i8080.C = i8080.mem8080[toWord(i8080.H, i8080.L)]; break;
+				case 0x4f: i8080.C = i8080.A; break;
+				case 0x50: i8080.D = i8080.B; break;
+				case 0x51: i8080.D = i8080.C; break;
+				case 0x52: i8080.D = i8080.D; break;
+				case 0x53: i8080.D = i8080.E; break;
+				case 0x54: i8080.D = i8080.H; break;
+				case 0x55: i8080.D = i8080.L; break;
+				case 0x56: i8080.D = i8080.mem8080[toWord(i8080.H, i8080.L)]; break;
+				case 0x57: i8080.D = i8080.A; break;
+				case 0x58: i8080.E = i8080.B; break;
+				case 0x59: i8080.E = i8080.C; break;
+				case 0x5a: i8080.E = i8080.D; break;
+				case 0x5b: i8080.E = i8080.E; break;
+				case 0x5c: i8080.E = i8080.H; break;
+				case 0x5d: i8080.E = i8080.L; break;
+				case 0x5e: i8080.E = i8080.mem8080[toWord(i8080.H, i8080.L)]; break;
+				case 0x5f: i8080.H = i8080.A; break;
+				case 0x60: i8080.H = i8080.B; break;
+				case 0x61: i8080.H = i8080.C; break;
+				case 0x62: i8080.H = i8080.D; break;
+				case 0x63: i8080.H = i8080.E; break;
+				case 0x64: i8080.H = i8080.H; break;
+				case 0x65: i8080.H = i8080.L; break;
+				case 0x66: i8080.H = i8080.mem8080[toWord(i8080.H, i8080.L)]; break;
+				case 0x67: i8080.L = i8080.A; break;
+				case 0x68: i8080.L = i8080.B; break;
+				case 0x69: i8080.L = i8080.C; break;
+				case 0x6a: i8080.L = i8080.D; break;
+				case 0x6b: i8080.L = i8080.E; break;
+				case 0x6c: i8080.L = i8080.H; break;
+				case 0x6d: i8080.L = i8080.L; break;
+				case 0x6e: i8080.L = i8080.mem8080[toWord(i8080.H, i8080.L)]; break;
+				case 0x6f: i8080.mem8080[toWord(i8080.H, i8080.L)] = i8080.A; break;
+				case 0x70: i8080.mem8080[toWord(i8080.H, i8080.L)] = i8080.B; break;
+				case 0x71: i8080.mem8080[toWord(i8080.H, i8080.L)] = i8080.C; break;
+				case 0x72: i8080.mem8080[toWord(i8080.H, i8080.L)] = i8080.D; break;
+				case 0x73: i8080.mem8080[toWord(i8080.H, i8080.L)] = i8080.E; break;
+				case 0x74: i8080.mem8080[toWord(i8080.H, i8080.L)] = i8080.H; break;
+				case 0x75: i8080.mem8080[toWord(i8080.H, i8080.L)] = i8080.L; break;
+				case 0x77: i8080.mem8080[toWord(i8080.H, i8080.L)] = i8080.A; break;
+				case 0x78: i8080.A = i8080.B; break;
+				case 0x79: i8080.A = i8080.C; break;
+				case 0x7a: i8080.A = i8080.D; break;
+				case 0x7b: i8080.A = i8080.E; break;
+				case 0x7c: i8080.A = i8080.H; break;
+				case 0x7d: i8080.A = i8080.L; break;
+				case 0x7e: i8080.A = i8080.mem8080[toWord(i8080.H, i8080.L)]; break;
+				case 0x7f: i8080.A = i8080.A; break;
+				default: break;
+			}
+			return i8080;
+		}
+
 		protected static State JMP(State i8080)
 		{
 			i8080.PC = nextWord(i8080.mem8080, i8080.PC);
@@ -350,7 +418,7 @@ namespace cs8080
 			switch (i8080.mem8080[i8080.PC])
 			{
 				// NOP instruction
-				case 0x00 or 0x08 or 0x10 or 0x18 or 0x20 or 0x28 or 0x30 or 0x38 or 0xcb or 0xd9 or 0xdd or 0xed or 0xfd: return NOP(i8080);
+				case 0x00 or 0x08 or 0x10 or 0x18 or 0x20 or 0x28 or 0x30 or 0x38 or 0xcb or 0xd9 or 0xdd or 0xed or 0xfd: return i8080;
 				// LXI instruction
 				case 0x01 or 0x11 or 0x21 or 0x31: return LXI(i8080);
 				// STAX instruction
@@ -381,8 +449,8 @@ namespace cs8080
 				case 0x3a: return LDA(i8080); // LDA
 				case 0x3f: return CMC(i8080); // CMC
 				// MOV
-				case <= 0x75 and >= 0x40: break;
-				case <= 0x7f and >= 0x77: break;
+				case <= 0x75 and >= 0x40: return MOV(i8080);
+				case <= 0x7f and >= 0x77: return MOV(i8080);
 				case 0x76: break; // HLT
 				// ADD
 				case <= 0x87 and >= 0x80: break;
