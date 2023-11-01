@@ -24,7 +24,7 @@
 					else
 					{
 						Console.WriteLine("Loading ROM...");
-						i8080.mem8080 = FM.LoadROM(File.ReadAllBytes(args[0]), i8080.mem8080, 0x0);
+						i8080.mem = FM.LoadROM(File.ReadAllBytes(args[0]), i8080.mem, 0x0);
 						Console.WriteLine($"Done loading {FM.ROMl} bytes, running...");
 						Emulate.Executor(i8080);
 						FM.DumpAll(i8080, "dump");
@@ -32,7 +32,7 @@
 				}
 				catch (Exception E)
 				{
-					Console.WriteLine($"Crash at {Disassembler.OPlookup(i8080.mem8080[i8080.PC], i8080.mem8080[i8080.PC+1], i8080.mem8080[i8080.PC+2])}");
+					Console.WriteLine($"Crash at {Disassembler.OPlookup(i8080.mem[i8080.PC], i8080.mem[i8080.PC+1], i8080.mem[i8080.PC+2])}");
 					Console.WriteLine(E);
 					FM.DumpAll(i8080, "dump");
 				}

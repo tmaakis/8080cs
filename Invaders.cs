@@ -111,7 +111,7 @@ namespace cs8080
 		{
 			SpaceInvadersIO i8080 = new();
 			Console.WriteLine("Loading Space Invaders...");
-			i8080.mem8080 = FM.LoadROM(File.ReadAllBytes(rompath), i8080.mem8080, 0x0);
+			i8080.mem = FM.LoadROM(File.ReadAllBytes(rompath), i8080.mem, 0x0);
 			Console.WriteLine($"Finished loading, running...");
 			Executor(i8080);
 		}
