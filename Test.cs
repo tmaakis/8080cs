@@ -37,7 +37,7 @@
 			TestIO i8080 = new();
 			try
 			{
-				byte[] rom = File.ReadAllBytes($"{testdir}/cpudiag.bin");
+				byte[] rom = File.ReadAllBytes($"{testdir}/TST8080.COM");
 				Console.WriteLine("Loading ROM...");
 				i8080.mem = FM.LoadROM(rom, i8080.mem, 0x100);
 				FM.DumpAll(i8080, "dump");
@@ -53,9 +53,9 @@
 				i8080.mem[0x0007] = 0xC9;
 
 				// skip DAA bc aux carry isn't working properly yet
-				i8080.mem[0x59c] = 0xc3;
-				i8080.mem[0x59d] = 0xc2;
-				i8080.mem[0x59e] = 0x05;
+				i8080.mem[0x5b3] = 0xc3; 
+				i8080.mem[0x5b4] = 0xc2;
+				i8080.mem[0x5b5] = 0x05;
 
 				Console.WriteLine($"Done loading {FM.ROMl} bytes, running...");
 				Emulate.Executor(i8080);

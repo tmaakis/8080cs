@@ -464,14 +464,14 @@
 				// ADI, accumulator add next byte
 				case 0xc6: flags.SetAll(); ArithByte(i8080, flags, (ushort)(i8080.A + nbyte)); break;
 				// RST 0, 1, 2, 3, 4, 5, 6, 7 which returns to these set address
-				case 0xc7: CALL(i8080, 0x00); break;
-				case 0xcf: CALL(i8080, 0x08); break;
-				case 0xd7: CALL(i8080, 0x10); break;
-				case 0xdf: CALL(i8080, 0x18); break;
-				case 0xe7: CALL(i8080, 0x20); break;
-				case 0xef: CALL(i8080, 0x28); break;
-				case 0xf7: CALL(i8080, 0x30); break;
-				case 0xff: CALL(i8080, 0x38); break;
+				case 0xc7: CALL(i8080, 0x00); i8080.cycles = 11; break;
+				case 0xcf: CALL(i8080, 0x08); i8080.cycles = 11; break;
+				case 0xd7: CALL(i8080, 0x10); i8080.cycles = 11; break;
+				case 0xdf: CALL(i8080, 0x18); i8080.cycles = 11; break;
+				case 0xe7: CALL(i8080, 0x20); i8080.cycles = 11; break;
+				case 0xef: CALL(i8080, 0x28); i8080.cycles = 11; break;
+				case 0xf7: CALL(i8080, 0x30); i8080.cycles = 11; break;
+				case 0xff: CALL(i8080, 0x38); i8080.cycles = 11; break;
 				// RZ, return if zero flag is set
 				case 0xc8: if (i8080.Z) { RET(i8080); } break;
 				// RET, return op
