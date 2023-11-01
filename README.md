@@ -7,8 +7,8 @@ Currently, Aux Carry does not work, so the test won't pass. You can skip the tes
 
 ## Running 
 ### 1. Install prerequisites & clone repo 
-  - (for spate invaders) Install SDL2
-  - Clone a enter this repo (`git clone https://github.com/tmaakis/8080.git && cd 8080cs')
+  - (for spate invaders) Install SDL2 (https://github.com/libsdl-org/SDL/releases)
+  - Clone a enter this repo (`git clone https://github.com/tmaakis/8080cs.git && cd 8080cs`)
 ### 2. Run the progran 
 There are a few ways to run the emulator. To run the test program (looks for TST0080.COX), simply type 
 ```
