@@ -5,7 +5,7 @@ namespace cs8080
 {
 	class SpaceInvadersIO : State
 	{
-
+		public SpaceInvadersIO(ushort memsize) : base(memsize) { }
 		/*
 			PORT 1
 			bit function
@@ -32,7 +32,6 @@ namespace cs8080
 			7   'dipswitch' coin info (0 means on)
 		*/
 		public byte port2;
-
 		private byte shiftoffset,msbyte,lsbyte;
 		override public byte PortIN(State i8080, byte port)
 		{
@@ -64,10 +63,17 @@ namespace cs8080
 	class SpaceInvaders
 	{
 		static SDL.SDL_Event e;
-		private static void Executor(SpaceInvadersIO i8080)
+		private static int Executor(SpaceInvadersIO invaders)
 		{
 			Stopwatch clock = new();
-			while (i8080.PC < FM.ROMl)
+			int cyclecount = 0;
+
+			// initialise an SDL window
+			int sdlinit = SDL.SDL_Init(SDL.SDL_INIT_VIDEO | SDL.SDL_INIT_AUDIO);
+			nint window = SDL.SDL_CreateWindow("Space Invaders",SDL.SDL_WINDOWPOS_CENTERED, SDL.SDL_WINDOWPOS_CENTERED, 640, 480, SDL.SDL_WindowFlags.SDL_WINDOW_RESIZABLE);
+			nint renderer = SDL.SDL_CreateRenderer(window, -1, SDL.SDL_RendererFlags.SDL_RENDERER_ACCELERATED |  SDL.SDL_RendererFlags.SDL_RENDERER_PRESENTVSYNC);
+
+			while (invaders.PC < FM.ROMl)
 			{
 				while (SDL.SDL_PollEvent(out e) != 0)
 				{
@@ -75,45 +81,71 @@ namespace cs8080
 					{
 						switch (e.key.keysym.scancode)
 						{
-							case SDL.SDL_Scancode.SDL_SCANCODE_C: i8080.port1 |= 0b1; break; // coin
-							case SDL.SDL_Scancode.SDL_SCANCODE_1: i8080.port1 |= 0b100; break; // player 1 start
-							case SDL.SDL_Scancode.SDL_SCANCODE_2: i8080.port1 |= 0b10; break; // player 2 start
-							case SDL.SDL_Scancode.SDL_SCANCODE_SPACE: i8080.port1 |= 0b10000; break; // player 1 shoot
-							case SDL.SDL_Scancode.SDL_SCANCODE_LEFT: i8080.port1 |= 0b100000; break; // player 1 left
-							case SDL.SDL_Scancode.SDL_SCANCODE_RIGHT: i8080.port1 |= 0b1000000; break; // player 1 right
-							case SDL.SDL_Scancode.SDL_SCANCODE_S: i8080.port2 |= 0b10000; break; // player 2 shoot
-							case SDL.SDL_Scancode.SDL_SCANCODE_A: i8080.port2 |= 0b100000; break; // player 2 left
-							case SDL.SDL_Scancode.SDL_SCANCODE_D: i8080.port2 |= 0b1000000; break; // player 2 right
+							case SDL.SDL_Scancode.SDL_SCANCODE_C: invaders.port1 |= 0b1; break; // coin
+							case SDL.SDL_Scancode.SDL_SCANCODE_1: invaders.port1 |= 0b100; break; // player 1 start
+							case SDL.SDL_Scancode.SDL_SCANCODE_2: invaders.port1 |= 0b10; break; // player 2 start
+							case SDL.SDL_Scancode.SDL_SCANCODE_SPACE: invaders.port1 |= 0b10000; break; // player 1 shoot
+							case SDL.SDL_Scancode.SDL_SCANCODE_LEFT: invaders.port1 |= 0b100000; break; // player 1 left
+							case SDL.SDL_Scancode.SDL_SCANCODE_RIGHT: invaders.port1 |= 0b1000000; break; // player 1 right
+							case SDL.SDL_Scancode.SDL_SCANCODE_S: invaders.port2 |= 0b10000; break; // player 2 shoot
+							case SDL.SDL_Scancode.SDL_SCANCODE_A: invaders.port2 |= 0b100000; break; // player 2 left
+							case SDL.SDL_Scancode.SDL_SCANCODE_D: invaders.port2 |= 0b1000000; break; // player 2 right
 						}
 					}
 					else if (e.type == SDL.SDL_EventType.SDL_KEYUP)
 					{
 						switch (e.key.keysym.scancode)
 						{
-							case SDL.SDL_Scancode.SDL_SCANCODE_C: i8080.port1 &= 0b11111110; break; // same as above
-							case SDL.SDL_Scancode.SDL_SCANCODE_2: i8080.port1 &= 0b11111101; break;
-							case SDL.SDL_Scancode.SDL_SCANCODE_1: i8080.port1 &= 0b11111011; break;
-							case SDL.SDL_Scancode.SDL_SCANCODE_SPACE: i8080.port1 &= 0b11101111; break;
-							case SDL.SDL_Scancode.SDL_SCANCODE_LEFT: i8080.port1 &= 0b11011111; break;
-							case SDL.SDL_Scancode.SDL_SCANCODE_RIGHT: i8080.port1 &= 0b10111111; break;
-							case SDL.SDL_Scancode.SDL_SCANCODE_S: i8080.port2 &= 0b11101111; break;
-							case SDL.SDL_Scancode.SDL_SCANCODE_A: i8080.port2 &= 0b11011111; break;
-							case SDL.SDL_Scancode.SDL_SCANCODE_D: i8080.port2 &= 0b10111111; break;
+							case SDL.SDL_Scancode.SDL_SCANCODE_C: invaders.port1 &= 0b11111110; break; // same as above
+							case SDL.SDL_Scancode.SDL_SCANCODE_2: invaders.port1 &= 0b11111101; break;
+							case SDL.SDL_Scancode.SDL_SCANCODE_1: invaders.port1 &= 0b11111011; break;
+							case SDL.SDL_Scancode.SDL_SCANCODE_SPACE: invaders.port1 &= 0b11101111; break;
+							case SDL.SDL_Scancode.SDL_SCANCODE_LEFT: invaders.port1 &= 0b11011111; break;
+							case SDL.SDL_Scancode.SDL_SCANCODE_RIGHT: invaders.port1 &= 0b10111111; break;
+							case SDL.SDL_Scancode.SDL_SCANCODE_S: invaders.port2 &= 0b11101111; break;
+							case SDL.SDL_Scancode.SDL_SCANCODE_A: invaders.port2 &= 0b11011111; break;
+							case SDL.SDL_Scancode.SDL_SCANCODE_D: invaders.port2 &= 0b10111111; break;
 						}
 					}
+					else if (e.type == SDL.SDL_EventType.SDL_QUIT)
+					{
+						return 1;
+					}
 				}
-				Emulate.OpcodeHandler(i8080);
-				//Thread.Sleep(50);
+				Emulate.OpcodeHandler(invaders);
+				cyclecount += invaders.cycles;
+				/* Throttle the CPU emulation if needed.
+				if (cyclecount >= (State.clockspeed / 60))
+				{
+					clock.Stop();
+					if (clock.Elapsed.TotalMilliseconds < 16.6)
+					{
+						var sleepForMs = 16.6 - clock.Elapsed.TotalMilliseconds;
+						if (sleepForMs >= 1)
+						Thread.Sleep((int)sleepForMs);
+					}
+					cyclecount = 0;
+					clock.Restart();
+					}*/
+				SDL.SDL_RenderPresent(renderer);
+#if DEBUG
+				Console.WriteLine($"PC: {invaders.PC:X4}, AF: {invaders.A:X2}{Ops.B2F(invaders):X2}, BC: {invaders.B:X2}{invaders.C:X2}, DE: {invaders.D:X2}{invaders.E:X2}, HL: {invaders.H:X2}{invaders.L:X2}, SP: {invaders.SP:X4} - {Disassembler.OPlookup(invaders.Mem[invaders.PC], invaders.Mem[invaders.PC + 1], invaders.Mem[invaders.PC + 2])}");
+				FM.DumpAll(invaders, "dump");
+#endif
+				//Thread.Sleep(1);
 			}
+			return 0;
 		}
 
 		public static void SIrun(string rompath)
 		{
-			SpaceInvadersIO i8080 = new();
+			SpaceInvadersIO invaders = new(16 * 1024); // 16kibs of ram as a byte array
+			// Array.Resize(ref invaders.cpu.mem, 8192); // space invaders only has 8kb of ram, not 64kb
 			Console.WriteLine("Loading Space Invaders...");
-			i8080.mem = FM.LoadROM(File.ReadAllBytes(rompath), i8080.mem, 0x0);
+			invaders.Mem = FM.LoadROM(File.ReadAllBytes(rompath), invaders.Mem, 0);
+			FM.DumpAll(invaders, "dump");
 			Console.WriteLine($"Finished loading, running...");
-			Executor(i8080);
+			Executor(invaders);
 		}
 	}
 }

@@ -4,38 +4,30 @@
 	{
 		static void Main(string[] args)
 		{
-			if (args[0] == "disassemble")
+			switch (args[0])
 			{
-				Disassembler.DisASMmain(args[1]);
-			}
-			else
-			{
-				State i8080 = new();
+			case "disassemble": Disassembler.DisASMmain(args[1]); break;
+			case "test": Test8080.Test(args[1]); break;
+			case "invaders": SpaceInvaders.SIrun("invaders.bin"); break;
+			default:
+				State i8080 = new(65535); // init 8080 state with 64k of ram, which is the max
 				try
 				{
-					if (args[0] == "test")
-					{
-						Test8080.Test(args[1]);
-					}
-					else if(args[0] == "invaders.bin")
-					{
-						SpaceInvaders.SIrun("invaders.bin");
-					}
-					else
-					{
-						Console.WriteLine("Loading ROM...");
-						i8080.mem = FM.LoadROM(File.ReadAllBytes(args[0]), i8080.mem, 0x0);
-						Console.WriteLine($"Done loading {FM.ROMl} bytes, running...");
-						Emulate.Executor(i8080);
-						FM.DumpAll(i8080, "dump");
-					}
+					Console.WriteLine("Loading ROM...");
+					i8080.Mem = FM.LoadROM(File.ReadAllBytes(args[0]), i8080.Mem, 0x0);
+					Console.WriteLine($"Done loading {FM.ROMl} bytes, running...");
+					Emulate.Executor(i8080);
+#if DEBUG
+					FM.DumpAll(i8080, "dump");
+#endif
 				}
 				catch (Exception E)
 				{
-					Console.WriteLine($"Crash at {Disassembler.OPlookup(i8080.mem[i8080.PC], i8080.mem[i8080.PC+1], i8080.mem[i8080.PC+2])}");
+					Console.WriteLine($"Crash at {Disassembler.OPlookup(i8080.Mem[i8080.PC], i8080.Mem[i8080.PC+1], i8080.Mem[i8080.PC+2])}");
 					Console.WriteLine(E);
 					FM.DumpAll(i8080, "dump");
 				}
+				break;
 			}
 		}
 	}
