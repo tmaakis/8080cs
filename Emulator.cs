@@ -20,7 +20,6 @@
 			P = true;
 			CY = true;
 		}
-
 		public void SetAllNC() // because sometimes we set carry flags in the instructions themselves
 		{
 			SetAll();
@@ -47,9 +46,12 @@
 		public ArithFlags AF = new(); // arith flags
 		public ConditionCodes CC = new(); // condition codes
 
-		public const ushort clockspeed = 2000; // intel 8080 runs at 2Mhz
-		public bool interrupt = true; // interrupts (no clue what the default should be)
-		public byte cycles; // how many cycles the last executed instruction is
+		public const uint CLOCKSPEED = 2000000; // intel 8080 runs at 2Mhz
+		public uint cycles; // cycle count of the prev instruction
+		public uint totalcycles; // how many cycles have been executed
+
+		public bool interrupt = false, interruptp = false; // bool for checking if interrupt pin is set, if interrupt is pending
+		public ushort interruptop = 0x00; // interrupt opcode to use
 
 		public byte B = 0x0, C = 0x0, D = 0x0, E = 0x0, H = 0x0, L = 0x0, A = 0x0; // 7 8-bit general purpose registers (can be used as 16 bit in pairs of 2) and a special accumulator register
 		public ushort SP = 0x0, PC = 0x0; // stack pointer that keeps return address, program counter that points to the next instruction to execute
@@ -181,12 +183,11 @@
 			return i8080;
 		}
 
-		public static State OpcodeHandler(State i8080)
+		public static State OpcodeHandler(State i8080, ushort ninst)
 		{
-			byte nbyte = i8080.Mem[i8080.PC + 1], nbyte2 = i8080.Mem[i8080.PC + 2], leftbit, rightbit, ahl = i8080.Mem[ToWord(i8080.H, i8080.L)]; // leftbit rightbit are just variables that are used to hold values for a complex instruction
+			byte nbyte = i8080.Mem[i8080.PC + 1], nbyte2 = i8080.Mem[i8080.PC + 2], leftbit, rightbit; // leftbit rightbit are just variables that are used to hold values for a complex instruction
 			ushort nword = ToWord(i8080.Mem[i8080.PC + 2], i8080.Mem[i8080.PC + 1]), regpair; // use regpair because it made sense for a few things, and we can reuse this for other ushort var requirements
-			ArithFlags flags = new();
-			switch (i8080.Mem[i8080.PC])
+			switch (ninst)
 			{
 				// NOP instruction, do nothing
 				case 0x00 or 0x08 or 0x10 or 0x18 or 0x20 or 0x28 or 0x30 or 0x38: i8080.cycles = 4; break;
@@ -210,7 +211,7 @@
 				case 0x1c: i8080.AF.SetAllNC(); i8080.CC.Write(i8080, (ushort)(i8080.E + 1)); i8080.E++; i8080.CC.AC = (i8080.E & 0xf) == 0; i8080.cycles = 5; break;
 				case 0x24: i8080.AF.SetAllNC(); i8080.CC.Write(i8080, (ushort)(i8080.H + 1)); i8080.H++; i8080.CC.AC = (i8080.H & 0xf) == 0; i8080.cycles = 5; break;
 				case 0x2c: i8080.AF.SetAllNC(); i8080.CC.Write(i8080, (ushort)(i8080.L + 1)); i8080.L++; i8080.CC.AC = (i8080.L & 0xf) == 0; i8080.cycles = 5; break;
-				case 0x34: i8080.AF.SetAllNC(); i8080.CC.Write(i8080, (ushort)(ahl + 1)); i8080.MemWrite(ToWord(i8080.H, i8080.L), (byte)(ahl + 1)); i8080.CC.AC = ((ahl+1) & 0xf) == 0; i8080.cycles = 10; break;
+				case 0x34: i8080.AF.SetAllNC(); i8080.CC.Write(i8080, (ushort)(i8080.Mem[ToWord(i8080.H, i8080.L)] + 1)); i8080.MemWrite(ToWord(i8080.H, i8080.L), (byte)(i8080.Mem[ToWord(i8080.H, i8080.L)] + 1)); i8080.CC.AC = ((i8080.Mem[ToWord(i8080.H, i8080.L)]+1) & 0xf) == 0; i8080.cycles = 10; break;
 				case 0x3c: i8080.AF.SetAllNC(); i8080.CC.Write(i8080, (ushort)(i8080.A + 1)); i8080.A++; i8080.CC.AC = (i8080.A & 0xf) == 0; i8080.cycles = 5; break;
 				// DCR instruction, decrement a register
 				case 0x05: i8080.AF.SetAllNC(); i8080.CC.Write(i8080, (ushort)(i8080.B - 1)); i8080.B--; i8080.CC.AC = !((i8080.B & 0xf) == 0xf); i8080.cycles = 5; break;
@@ -219,7 +220,7 @@
 				case 0x1d: i8080.AF.SetAllNC(); i8080.CC.Write(i8080, (ushort)(i8080.E - 1)); i8080.E--; i8080.CC.AC = !((i8080.E & 0xf) == 0xf); i8080.cycles = 5; break;
 				case 0x25: i8080.AF.SetAllNC(); i8080.CC.Write(i8080, (ushort)(i8080.H - 1)); i8080.H--; i8080.CC.AC = !((i8080.H & 0xf) == 0xf); i8080.cycles = 5; break;
 				case 0x2d: i8080.AF.SetAllNC(); i8080.CC.Write(i8080, (ushort)(i8080.L - 1)); i8080.L--; i8080.CC.AC = !((i8080.L & 0xf) == 0xf); i8080.cycles = 5; break;
-				case 0x35: i8080.AF.SetAllNC(); i8080.CC.Write(i8080, (ushort)(ahl - 1)); i8080.MemWrite(ToWord(i8080.H, i8080.L), (byte)(ahl - 1)); i8080.CC.AC = !(((ahl - 1) & 0xf) == 0xf); i8080.cycles = 10; break;
+				case 0x35: i8080.AF.SetAllNC(); i8080.CC.Write(i8080, (ushort)(i8080.Mem[ToWord(i8080.H, i8080.L)] - 1)); i8080.MemWrite(ToWord(i8080.H, i8080.L), (byte)(i8080.Mem[ToWord(i8080.H, i8080.L)] - 1)); i8080.CC.AC = !(((i8080.Mem[ToWord(i8080.H, i8080.L)] - 1) & 0xf) == 0xf); i8080.cycles = 10; break;
 				case 0x3d: i8080.AF.SetAllNC(); i8080.CC.Write(i8080, (ushort)(i8080.A - 1)); i8080.A--; i8080.CC.AC = !((i8080.A & 0xf) == 0xf); i8080.cycles = 5; break;
 				// MVI instruction, loads register with next byte of the ROM
 				case 0x06: i8080.B = nbyte; i8080.PC++; i8080.cycles = 7; break;
@@ -317,7 +318,7 @@
 				case 0x43: i8080.B = i8080.E; i8080.cycles = 5; break;
 				case 0x44: i8080.B = i8080.H; i8080.cycles = 5; break;
 				case 0x45: i8080.B = i8080.L; i8080.cycles = 5; break;
-				case 0x46: i8080.B = ahl; i8080.cycles = 7; break;
+				case 0x46: i8080.B = i8080.Mem[ToWord(i8080.H, i8080.L)]; i8080.cycles = 7; break;
 				case 0x47: i8080.B = i8080.A; i8080.cycles = 5; break;
 				case 0x48: i8080.C = i8080.B; i8080.cycles = 5; break;
 				case 0x49: i8080.cycles = 5; break; // C -> C
@@ -325,7 +326,7 @@
 				case 0x4b: i8080.C = i8080.E; i8080.cycles = 5; break;
 				case 0x4c: i8080.C = i8080.H; i8080.cycles = 5; break;
 				case 0x4d: i8080.C = i8080.L; i8080.cycles = 5; break;
-				case 0x4e: i8080.C = ahl; i8080.cycles = 7; break;
+				case 0x4e: i8080.C = i8080.Mem[ToWord(i8080.H, i8080.L)]; i8080.cycles = 7; break;
 				case 0x4f: i8080.C = i8080.A; i8080.cycles = 5; break;
 				case 0x50: i8080.D = i8080.B; i8080.cycles = 5; break;
 				case 0x51: i8080.D = i8080.C; i8080.cycles = 5; break;
@@ -333,7 +334,7 @@
 				case 0x53: i8080.D = i8080.E; i8080.cycles = 5; break;
 				case 0x54: i8080.D = i8080.H; i8080.cycles = 5; break;
 				case 0x55: i8080.D = i8080.L; i8080.cycles = 5; break;
-				case 0x56: i8080.D = ahl; i8080.cycles = 7; break;
+				case 0x56: i8080.D = i8080.Mem[ToWord(i8080.H, i8080.L)]; i8080.cycles = 7; break;
 				case 0x57: i8080.D = i8080.A; i8080.cycles = 5; break;
 				case 0x58: i8080.E = i8080.B; i8080.cycles = 5; break;
 				case 0x59: i8080.E = i8080.C; i8080.cycles = 5; break;
@@ -341,7 +342,7 @@
 				case 0x5b: i8080.cycles = 5; break; // E -> E
 				case 0x5c: i8080.E = i8080.H; i8080.cycles = 5; break;
 				case 0x5d: i8080.E = i8080.L; i8080.cycles = 5; break;
-				case 0x5e: i8080.E = ahl; i8080.cycles = 7; break;
+				case 0x5e: i8080.E = i8080.Mem[ToWord(i8080.H, i8080.L)]; i8080.cycles = 7; break;
 				case 0x5f: i8080.E = i8080.A; i8080.cycles = 5; break;
 				case 0x60: i8080.H = i8080.B; i8080.cycles = 5; break;
 				case 0x61: i8080.H = i8080.C; i8080.cycles = 5; break;
@@ -349,7 +350,7 @@
 				case 0x63: i8080.H = i8080.E; i8080.cycles = 5; break;
 				case 0x64: i8080.cycles = 5; break; // H -> H
 				case 0x65: i8080.H = i8080.L; i8080.cycles = 5; break;
-				case 0x66: i8080.H = ahl; i8080.cycles = 7; break;
+				case 0x66: i8080.H = i8080.Mem[ToWord(i8080.H, i8080.L)]; i8080.cycles = 7; break;
 				case 0x67: i8080.H = i8080.A; i8080.cycles = 5; break;
 				case 0x68: i8080.L = i8080.B; i8080.cycles = 5; break;
 				case 0x69: i8080.L = i8080.C; i8080.cycles = 5; break;
@@ -357,7 +358,7 @@
 				case 0x6b: i8080.L = i8080.E; i8080.cycles = 5; break;
 				case 0x6c: i8080.L = i8080.H; i8080.cycles = 5; break;
 				case 0x6d: i8080.cycles = 5; break; // L -> L
-				case 0x6e: i8080.L = ahl; i8080.cycles = 7; break;
+				case 0x6e: i8080.L = i8080.Mem[ToWord(i8080.H, i8080.L)]; i8080.cycles = 7; break;
 				case 0x6f: i8080.L = i8080.A; i8080.cycles = 5; break;
 				case 0x70: i8080.MemWrite(ToWord(i8080.H, i8080.L), i8080.B); i8080.cycles = 7; break;
 				case 0x71: i8080.MemWrite(ToWord(i8080.H, i8080.L), i8080.C); i8080.cycles = 7; break;
@@ -373,7 +374,7 @@
 				case 0x7b: i8080.A = i8080.E; i8080.cycles = 5; break;
 				case 0x7c: i8080.A = i8080.H; i8080.cycles = 5; break;
 				case 0x7d: i8080.A = i8080.L; i8080.cycles = 5; break;
-				case 0x7e: i8080.A = ahl; i8080.cycles = 7; break;
+				case 0x7e: i8080.A = i8080.Mem[ToWord(i8080.H, i8080.L)]; i8080.cycles = 7; break;
 				case 0x7f: i8080.cycles = 5; break; // A -> A
 				// ADD, add a register to the accumulator
 				case 0x80: i8080.AF.SetAll(); ArithAdd(i8080, i8080.B); break;
@@ -382,7 +383,7 @@
 				case 0x83: i8080.AF.SetAll(); ArithAdd(i8080, i8080.E); break;
 				case 0x84: i8080.AF.SetAll(); ArithAdd(i8080, i8080.H); break;
 				case 0x85: i8080.AF.SetAll(); ArithAdd(i8080, i8080.L); break;
-				case 0x86: i8080.AF.SetAll(); ArithAdd(i8080, ahl); i8080.cycles = 7; break;
+				case 0x86: i8080.AF.SetAll(); ArithAdd(i8080, i8080.Mem[ToWord(i8080.H, i8080.L)]); i8080.cycles = 7; break;
 				case 0x87: i8080.AF.SetAll(); ArithAdd(i8080, i8080.A); break;
 				// ADC, ADD but with a carry flag
 				case 0x88: i8080.AF.SetAll(); ArithAdd(i8080, (ushort)(i8080.B + Convert.ToByte(i8080.CC.CY))); break;
@@ -391,7 +392,7 @@
 				case 0x8b: i8080.AF.SetAll(); ArithAdd(i8080, (ushort)(i8080.E + Convert.ToByte(i8080.CC.CY))); break;
 				case 0x8c: i8080.AF.SetAll(); ArithAdd(i8080, (ushort)(i8080.H + Convert.ToByte(i8080.CC.CY))); break;
 				case 0x8d: i8080.AF.SetAll(); ArithAdd(i8080, (ushort)(i8080.L + Convert.ToByte(i8080.CC.CY))); break;
-				case 0x8e: i8080.AF.SetAll(); ArithAdd(i8080, (ushort)(ahl + Convert.ToByte(i8080.CC.CY))); i8080.cycles = 7; break;
+				case 0x8e: i8080.AF.SetAll(); ArithAdd(i8080, (ushort)(i8080.Mem[ToWord(i8080.H, i8080.L)] + Convert.ToByte(i8080.CC.CY))); i8080.cycles = 7; break;
 				case 0x8f: i8080.AF.SetAll(); ArithAdd(i8080, (ushort)(i8080.A + Convert.ToByte(i8080.CC.CY))); break;
 				// SUB, convert the register to 2's complement then add
 				case 0x90: i8080.AF.SetAllNC(); ArithAdd(i8080, (ushort)(~i8080.B + 1)); break;
@@ -400,7 +401,7 @@
 				case 0x93: i8080.AF.SetAllNC(); ArithAdd(i8080, (ushort)(~i8080.E + 1)); break;
 				case 0x94: i8080.AF.SetAllNC(); ArithAdd(i8080, (ushort)(~i8080.H + 1)); break;
 				case 0x95: i8080.AF.SetAllNC(); ArithAdd(i8080, (ushort)(~i8080.L + 1)); break;
-				case 0x96: i8080.AF.SetAllNC(); ArithAdd(i8080, (ushort)(~ahl + 1)); i8080.cycles = 7; break;
+				case 0x96: i8080.AF.SetAllNC(); ArithAdd(i8080, (ushort)(~i8080.Mem[ToWord(i8080.H, i8080.L)] + 1)); i8080.cycles = 7; break;
 				case 0x97: i8080.AF.SetAllNC(); i8080.A = 0x0; i8080.CC.Write(i8080, i8080.A); i8080.cycles = 4; break; // subbing A is very simple
 				// SBB, SUB but with a carry added to the register
 				case 0x98: i8080.AF.SetAll(); ArithAdd(i8080, (ushort)(~(i8080.B + Convert.ToByte(i8080.CC.CY)) + 1)); break;
@@ -409,7 +410,7 @@
 				case 0x9b: i8080.AF.SetAll(); ArithAdd(i8080, (ushort)(~(i8080.E + Convert.ToByte(i8080.CC.CY)) + 1)); break;
 				case 0x9c: i8080.AF.SetAll(); ArithAdd(i8080, (ushort)(~(i8080.H + Convert.ToByte(i8080.CC.CY)) + 1)); break;
 				case 0x9d: i8080.AF.SetAll(); ArithAdd(i8080, (ushort)(~(i8080.L + Convert.ToByte(i8080.CC.CY)) + 1)); break;
-				case 0x9e: i8080.AF.SetAll(); ArithAdd(i8080, (ushort)(~(ahl + Convert.ToByte(i8080.CC.CY)) + 1)); i8080.cycles = 7; break;
+				case 0x9e: i8080.AF.SetAll(); ArithAdd(i8080, (ushort)(~(i8080.Mem[ToWord(i8080.H, i8080.L)] + Convert.ToByte(i8080.CC.CY)) + 1)); i8080.cycles = 7; break;
 				case 0x9f: i8080.AF.SetAll(); ArithAdd(i8080, (ushort)(~(i8080.A + Convert.ToByte(i8080.CC.CY)) + 1)); break;
 				// ANA, accumulator logically AND'ed with specified reg
 				case 0xa0: i8080.AF.SetAll(); i8080.AF.AC = true; Arith(i8080, (ushort)(i8080.A & i8080.B)); break;
@@ -418,8 +419,8 @@
 				case 0xa3: i8080.AF.SetAll(); i8080.AF.AC = true; Arith(i8080, (ushort)(i8080.A & i8080.E)); break;
 				case 0xa4: i8080.AF.SetAll(); i8080.AF.AC = true; Arith(i8080, (ushort)(i8080.A & i8080.H)); break;
 				case 0xa5: i8080.AF.SetAll(); i8080.AF.AC = true; Arith(i8080, (ushort)(i8080.A & i8080.L)); break;
-				case 0xa6: i8080.AF.SetAll(); i8080.AF.AC = true; Arith(i8080, (ushort)(i8080.A & ahl)); i8080.cycles = 7; break;
-				case 0xa7: i8080.AF.SetAll(); i8080.AF.AC = true; Arith(i8080, (ushort)(i8080.A & i8080.A)); break;
+				case 0xa6: i8080.AF.SetAll(); i8080.AF.AC = true; Arith(i8080, (ushort)(i8080.A & i8080.Mem[ToWord(i8080.H, i8080.L)])); i8080.cycles = 7; break;
+				case 0xa7: i8080.AF.SetAll(); i8080.CC.AC = true; Arith(i8080, (ushort)(i8080.A & i8080.A)); break;
 				// XRA, accumulator XOR'd 
 				case 0xa8: i8080.AF.SetAll(); Arith(i8080, (ushort)(i8080.A ^ i8080.B)); break;
 				case 0xa9: i8080.AF.SetAll(); Arith(i8080, (ushort)(i8080.A ^ i8080.C)); break;
@@ -427,7 +428,7 @@
 				case 0xab: i8080.AF.SetAll(); Arith(i8080, (ushort)(i8080.A ^ i8080.E)); break;
 				case 0xac: i8080.AF.SetAll(); Arith(i8080, (ushort)(i8080.A ^ i8080.H)); break;
 				case 0xad: i8080.AF.SetAll(); Arith(i8080, (ushort)(i8080.A ^ i8080.L)); break;
-				case 0xae: i8080.AF.SetAll(); Arith(i8080, (ushort)(i8080.A ^ ahl)); i8080.cycles = 7; break;
+				case 0xae: i8080.AF.SetAll(); Arith(i8080, (ushort)(i8080.A ^ i8080.Mem[ToWord(i8080.H, i8080.L)])); i8080.cycles = 7; break;
 				case 0xaf: i8080.AF.SetAll(); Arith(i8080, (ushort)(i8080.A ^ i8080.A)); break;
 				// ORA, accumulator OR'd
 				case 0xb0: i8080.AF.SetAll(); Arith(i8080, (ushort)(i8080.A | i8080.B)); break;
@@ -436,7 +437,7 @@
 				case 0xb3: i8080.AF.SetAll(); Arith(i8080, (ushort)(i8080.A | i8080.E)); break;
 				case 0xb4: i8080.AF.SetAll(); Arith(i8080, (ushort)(i8080.A | i8080.H)); break;
 				case 0xb5: i8080.AF.SetAll(); Arith(i8080, (ushort)(i8080.A | i8080.L)); break;
-				case 0xb6: i8080.AF.SetAll(); Arith(i8080, (ushort)(i8080.A | ahl)); i8080.cycles = 7; break;
+				case 0xb6: i8080.AF.SetAll(); Arith(i8080, (ushort)(i8080.A | i8080.Mem[ToWord(i8080.H, i8080.L)])); i8080.cycles = 7; break;
 				case 0xb7: i8080.AF.SetAll(); Arith(i8080, (ushort)(i8080.A | i8080.A)); break;
 				// CMP, i think it is like SUB but only setting conditional flags
 				case 0xb8: i8080.AF.SetAllNC(); i8080.AF.AC = true; i8080.CC.Write(i8080, (ushort)(i8080.A + (~i8080.B) + 1)); i8080.cycles = 4; break;
@@ -445,7 +446,7 @@
 				case 0xbb: i8080.AF.SetAllNC(); i8080.AF.AC = true; i8080.CC.Write(i8080, (ushort)(i8080.A + (~i8080.E) + 1)); i8080.cycles = 4; break;
 				case 0xbc: i8080.AF.SetAllNC(); i8080.AF.AC = true; i8080.CC.Write(i8080, (ushort)(i8080.A + (~i8080.H) + 1)); i8080.cycles = 4; break;
 				case 0xbd: i8080.AF.SetAllNC(); i8080.AF.AC = true; i8080.CC.Write(i8080, (ushort)(i8080.A + (~i8080.L) + 1)); i8080.cycles = 4; break;
-				case 0xbe: i8080.AF.SetAllNC(); i8080.AF.AC = true; i8080.CC.Write(i8080, (ushort)(i8080.A + (~ahl) + 1)); i8080.cycles = 7; break;
+				case 0xbe: i8080.AF.SetAllNC(); i8080.AF.AC = true; i8080.CC.Write(i8080, (ushort)(i8080.A + (~i8080.Mem[ToWord(i8080.H, i8080.L)]) + 1)); i8080.cycles = 7; break;
 				case 0xbf: i8080.AF.SetAllNC(); i8080.AF.AC = true; i8080.CC.Write(i8080, (ushort)(i8080.A + (~i8080.A ) + 1)); i8080.cycles = 4; break;
 				// RNZ, return if not zero
 				case 0xc0: if (!i8080.CC.Z) { RET(i8080); } else { i8080.cycles = 5; } break;
@@ -575,6 +576,29 @@
 				case 0xdd or 0xed or 0xfd: CALL(i8080, nword); break;
 			}
 			i8080.PC++;
+			i8080.totalcycles += i8080.cycles;
+			return i8080;
+		}
+
+		public static State InterruptGen(State i8080, ushort op)
+		{
+			i8080.interruptp = true;
+			i8080.interruptop = op;
+			return i8080;
+		}
+
+		public static State Exec(State i8080)
+		{
+			if (i8080.interrupt)
+			{
+				i8080.interrupt = false;
+				i8080.interruptp = false;
+				OpcodeHandler(i8080, i8080.interruptop);
+			}
+			else if (!i8080.interrupt)
+			{
+				OpcodeHandler(i8080, i8080.Mem[i8080.PC]);
+			}
 			return i8080;
 		}
 
@@ -586,7 +610,7 @@
 				Console.WriteLine($"PC: {i8080.PC:X4}, AF: {i8080.A:X2}{Ops.B2F(i8080):X2}, BC: {i8080.B:X2}{i8080.C:X2}, DE: {i8080.D:X2}{i8080.E:X2}, HL: {i8080.H:X2}{i8080.L:X2}, M: {i8080.Mem[ToWord(i8080.H, i8080.L)]}, SP: {i8080.SP:X4} - {Disassembler.OPlookup(i8080.Mem[i8080.PC], i8080.Mem[i8080.PC + 1], i8080.Mem[i8080.PC + 2])}");
 				//FM.DumpAll(i8080, "dump");
 #endif
-				OpcodeHandler(i8080);
+				Exec(i8080);
 			}
 			return i8080;
 		}

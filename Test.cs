@@ -2,7 +2,7 @@
 {
 	class TestIO : State
 	{
-		public TestIO(ushort memsize) : base(memsize) { }
+		public TestIO(ushort memsize) : base(memsize) {} // method to set memory size of the base class from this class
 
 		override public byte PortIN(State i8080, byte port)
 		{
