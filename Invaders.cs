@@ -1,6 +1,5 @@
 using SDL2;
 using System.Diagnostics;
-using System.Runtime.Intrinsics.X86;
 
 namespace cs8080
 {
@@ -41,7 +40,7 @@ namespace cs8080
 				case 0: break; // not called by space invaders
 				case 1: i8080.A = port1; break; // read port 1
 				case 2: i8080.A = port2; break; // read port 2
-				//case 3: i8080.A = (byte)((ushort)((msbyte << 8) | lsbyte) >> (8 - shiftoffset) & 0xff); break; // shifting mechanism output
+				case 3: i8080.A = (byte)((ushort)((msbyte << 8) | lsbyte) >> (8 - shiftoffset) & 0xff); break; // shifting mechanism output
 			}
 			return i8080.A;
 		}
@@ -139,8 +138,11 @@ namespace cs8080
 
 		private static SpaceInvadersIO Executor()
 		{
-			//Thread exec8080 = new(new ThreadStart(CPUSTEP));
-			//exec8080.Start();
+            Thread exec8080 = new(new ThreadStart(CPUSTEP))
+            {
+                Name = "thread"
+            };
+            exec8080.Start();
 			SDLGUI();
 			/*
 			uint count = 0;
