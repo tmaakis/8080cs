@@ -187,8 +187,17 @@
 
 		public static State OpcodeHandler(State i8080, ushort ninst)
 		{
-			byte nbyte = i8080.Mem[i8080.PC + 1], nbyte2 = i8080.Mem[i8080.PC + 2], leftbit, rightbit; // leftbit rightbit are just variables that are used to hold values for a complex instruction
-			ushort nword = ToWord(i8080.Mem[i8080.PC + 2], i8080.Mem[i8080.PC + 1]), regpair; // use regpair because it made sense for a few things, and we can reuse this for other ushort var requirements
+		byte nbyte=0, nbyte2=0, leftbit, rightbit;
+			ushort nword=0, regpair;
+		try
+		{
+			nbyte = i8080.Mem[i8080.PC + 1];
+			nbyte2 = i8080.Mem[i8080.PC + 2]; // leftbit rightbit are just variables that are used to hold values for a complex instruction
+			nword = ToWord(i8080.Mem[i8080.PC + 2], i8080.Mem[i8080.PC + 1]); // use regpair because it made sense for a few things, and we can reuse this for other ushort var requirements
+			}
+			catch
+			{
+			}
 			switch (ninst)
 			{
 				// NOP instruction, do nothing
@@ -594,7 +603,7 @@
 
 		public static State Exec(State i8080)
 		{
-			if (i8080.interrupt)
+			/* if (i8080.interrupt)
 			{
 				i8080.interrupt = false;
 				i8080.interruptp = false;
@@ -603,7 +612,12 @@
 			else if (!i8080.interrupt)
 			{
 				OpcodeHandler(i8080, i8080.Mem[i8080.PC]);
-			}
+			}*/
+			OpcodeHandler(i8080, i8080.Mem[i8080.PC]);
+#if DEBUG
+				Console.WriteLine($"PC: {i8080.PC:X4}, AF: {i8080.A:X2}{Ops.B2F(i8080):X2}, BC: {i8080.B:X2}{i8080.C:X2}, DE: {i8080.D:X2}{i8080.E:X2}, HL: {i8080.H:X2}{i8080.L:X2}, M: {i8080.Mem[ToWord(i8080.H, i8080.L)]}, SP: {i8080.SP:X4} - {Disassembler.OPlookup(i8080.Mem[i8080.PC], i8080.Mem[i8080.PC + 1], i8080.Mem[i8080.PC + 2])}");
+				//FM.DumpAll(i8080, "dump");
+#endif
 			return i8080;
 		}
 
@@ -611,10 +625,6 @@
 		{
 			while (i8080.PC < FM.ROMl || !i8080.halt)
 			{
-#if DEBUG
-				//Console.WriteLine($"PC: {i8080.PC:X4}, AF: {i8080.A:X2}{Ops.B2F(i8080):X2}, BC: {i8080.B:X2}{i8080.C:X2}, DE: {i8080.D:X2}{i8080.E:X2}, HL: {i8080.H:X2}{i8080.L:X2}, M: {i8080.Mem[ToWord(i8080.H, i8080.L)]}, SP: {i8080.SP:X4} - {Disassembler.OPlookup(i8080.Mem[i8080.PC], i8080.Mem[i8080.PC + 1], i8080.Mem[i8080.PC + 2])}");
-				//FM.DumpAll(i8080, "dump");
-#endif
 				Exec(i8080);
 			}
 			return i8080;

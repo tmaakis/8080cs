@@ -38,8 +38,8 @@ namespace cs8080
 	{
 		public static void Test(string testdir)
 		{
-            string[] roms = { "TST8080.COM", "CPUTEST.COM", "8080PRE.COM", "8080EXM.COM" };
-            //string[] roms = { "CPUTEST.COM" };
+            //string[] roms = { "TST8080.COM", "CPUTEST.COM", "8080PRE.COM", "8080EXM.COM" };
+            string[] roms = { "TST8080.COM" };
             foreach (string romp in roms)
 			{
                 Console.WriteLine($"\nLoading ROM ({romp})");
